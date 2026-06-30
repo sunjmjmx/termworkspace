@@ -1,0 +1,154 @@
+# =============================================================================
+# TermWorkspace 配置文件示例
+# =============================================================================
+# 将此文件复制到 ~/.termworkspace/config.yaml 并填入你的 API Key 后使用。
+# 复制命令: cp config.yaml.example ~/.termworkspace/config.yaml
+
+# ---------------------------------------------------------------------------
+# Providers — 定义可用的 AI 模型提供商
+# ---------------------------------------------------------------------------
+providers:
+  deepseek:
+    api_base: "https://api.deepseek.com/v1"
+    api_key: "YOUR_API_KEY_HERE"   # 替换为你的 DeepSeek API Key
+    default_model: "deepseek-chat"
+    models:
+      - name: "deepseek-chat"
+        context_window: 65536
+        max_tokens: 8192
+      - name: "deepseek-reasoner"
+        context_window: 65536
+        max_tokens: 8192
+
+  openai:
+    api_base: "https://api.openai.com/v1"
+    api_key: "YOUR_API_KEY_HERE"   # 替换为你的 OpenAI API Key
+    default_model: "gpt-4o"
+    models:
+      - name: "gpt-4o"
+        context_window: 128000
+        max_tokens: 4096
+      - name: "gpt-4o-mini"
+        context_window: 128000
+        max_tokens: 16384
+      - name: "o1-mini"
+        context_window: 128000
+        max_tokens: 16384
+
+# ---------------------------------------------------------------------------
+# Workspaces — 定义工作区
+# ---------------------------------------------------------------------------
+# 每个 workspace 包含多个窗口 (panes)，每个窗口绑定不同的模型。
+# 你可以在会话中用快捷键切换 workspace 或在窗口间跳转。
+workspaces:
+  # =========================================================================
+  # Workspace 1: 写作专用
+  # =========================================================================
+  writing:
+    name: "📝 写作工作区"
+    description: "日常写作、翻译、润色、文稿校对"
+    default_pane: planning
+    panes:
+      # 窗口 1: 主写作窗口 — DeepSeek (长上下文，适合长文写作)
+      - id: main_writer
+        name: "✍️ 主写作"
+        provider: deepseek
+        model: deepseek-chat
+        system_prompt: |
+          你是一位专业的中文写作助手。你的职责包括：
+          - 协助用户完成文章、报告、方案等内容的撰写
+          - 提供流畅、准确的翻译服务
+          - 对文本进行润色、校对和优化
+          - 保持专业、清晰的表达风格
+          请积极回应用户的需求，给出具体的修改建议或完整的段落。
+
+      # 窗口 2: 思维导图 / 头脑风暴 — DeepSeek Reasoner (深度推理)
+      - id: brainstorming
+        name: "💡 头脑风暴"
+        provider: deepseek
+        model: deepseek-reasoner
+        system_prompt: |
+          你是一位创意写作顾问。请帮助用户进行头脑风暴、构思大纲、
+          整理文章结构、拓展思路。提供多种可选方案和清晰的结构建议。
+
+      # 窗口 3: 精校润色 — GPT-4o (细致校对)
+      - id: polishing
+        name: "🔍 精校润色"
+        provider: openai
+        model: gpt-4o
+        system_prompt: |
+          你是一位资深文字编辑。请对用户提供的文本进行细致校对：
+          - 修正语法、标点和拼写错误
+          - 优化句式结构和用词
+          - 统一术语和表达风格
+          - 输出时标注所有修改之处
+          保持原意不变，仅做文字层面的优化。
+
+  # =========================================================================
+  # Workspace 2: 编程专用
+  # =========================================================================
+  coding:
+    name: "💻 编程工作区"
+    description: "代码编写、调试、重构、技术问答"
+    default_pane: code_assist
+    panes:
+      # 窗口 1: 代码助手 — GPT-4o (通用代码能力)
+      - id: code_assist
+        name: "👨‍💻 代码助手"
+        provider: openai
+        model: gpt-4o
+        system_prompt: |
+          你是一位资深全栈开发工程师。请帮助用户：
+          - 编写高质量、可维护的代码
+          - 解释复杂的技术概念
+          - 调试和修复代码错误
+          - 提供最佳实践建议
+          代码示例请包含语言标注和必要注释。优先考虑类型安全和可读性。
+
+      # 窗口 2: 性能优化 & 深入分析 — o1-mini (推理能力强)
+      - id: deep_analyzer
+        name: "🧠 深度分析"
+        provider: openai
+        model: o1-mini
+        system_prompt: |
+          你是一位系统架构师和性能优化专家。请帮助用户：
+          - 分析算法复杂度和性能瓶颈
+          - 提供代码重构和优化方案
+          - 设计系统架构
+          - 做技术选型对比
+          分析要深入、全面，给出具体的优化建议和可量化的效果预期。
+
+      # 窗口 3: 快速查询 & 轻量任务 — DeepSeek (快速响应)
+      - id: quick_query
+        name: "⚡ 快速查询"
+        provider: deepseek
+        model: deepseek-chat
+        system_prompt: |
+          你是一位高效的编程助手。对于用户的提问，请：
+          - 给出简洁、直接的答案
+          - 附上关键代码片段即可，无需过多解释
+          - 优先提供标准库或主流框架的解决方案
+          保持快速响应的风格。
+
+# ---------------------------------------------------------------------------
+# 全局设置
+# ---------------------------------------------------------------------------
+settings:
+  # 界面主题 (textual 内置主题: default, dark, light, flexoki, gruvbox, catppuccin, monokai, solarized-light)
+  theme: catppuccin
+
+  # 默认的 AI 温度和 top_p
+  temperature: 0.7
+  top_p: 0.9
+
+  # 历史消息保留条数
+  max_history: 100
+
+  # 自动保存会话的间隔（秒）
+  auto_save_interval: 60
+
+  # 会话文件存储目录
+  session_dir: "~/.termworkspace/sessions"
+
+  # 日志级别
+  log_level: info
