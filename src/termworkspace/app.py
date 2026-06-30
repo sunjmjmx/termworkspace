@@ -1,10 +1,10 @@
 """TermWorkspace — A terminal-based AI workspace with split-panel conversations.
 
-Entry point::
-    textual run src/app.py
+Entry point (after pip install)::
+    termworkspace
 
-Or from project root::
-    python3 -m src.app
+Or::
+    python3 -m termworkspace
 
 Keyboard shortcuts:
   Ctrl+T  → New tab
@@ -15,10 +15,6 @@ Keyboard shortcuts:
 from __future__ import annotations
 import asyncio
 import os
-import sys
-
-# Ensure src is on path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -35,11 +31,11 @@ from textual.widgets import (
     TabPane,
 )
 
-from window import AIWindowPanel
-from workspace import WorkspaceView, WorkspaceManager, global_config
-from providers import ProviderManager as RealProviderManager
-from providers import send_message
-from config import ConfigManager
+from .window import AIWindowPanel
+from .workspace import WorkspaceView, WorkspaceManager, global_config
+from .providers import ProviderManager as RealProviderManager
+from .providers import send_message
+from .config import ConfigManager
 
 
 # ── StatusBar ─────────────────────────────────────────────────────────────────
@@ -367,7 +363,7 @@ class TermWorkspaceApp(App):
             models = self._provider_mgr.get_available_models()
             global_config.providers.clear()
             for provider_name, model_name in models:
-                from workspace import ProviderConfig as WSProvider
+                from .workspace import ProviderConfig as WSProvider
                 global_config.providers.append(
                     WSProvider(name=provider_name, model=model_name, api_key="", base_url="", online=True)
                 )
@@ -533,7 +529,55 @@ class TermWorkspaceApp(App):
 
 
 def main() -> None:
-    """Run the TermWorkspace application."""
+    "Run the TermWorkspace application."
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="termworkspace",
+        description="TermWorkspace - Terminal-native multi-model AI workspace",
+        epilog=(
+            "Keyboard shortcuts inside the app:\n"
+            "  Ctrl+T  New workspace tab\n"
+            "  Ctrl+W  Close current tab\n"
+            "  Ctrl+Q  Quit"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="termworkspace 0.1.0",
+        help="show version and exit",
+    )
+    parser.add_argument(
+        "-c", "--config",
+        metavar="PATH",
+        help="path to config YAML (default: ~/.termworkspace/config.yaml)",
+    )
+    parser.add_argument(
+        "--theme",
+        choices=["dark", "light"],
+        default=None,
+        help="override theme (default: from config or dark)",
+    )
+    parser.add_argument(
+        "--init",
+        action="store_true",
+        help="run the initial setup wizard and exit",
+    )
+
+    args = parser.parse_args()
+
+    if args.init:
+        from .config import ConfigManager
+        config = ConfigManager.init_wizard()
+        if config:
+            print("Configuration complete. Run 'termworkspace' to start.")
+        return
+
+    if args.config:
+        os.environ["TERMWORKSPACE_CONFIG"] = args.config
+
     app = TermWorkspaceApp()
     app.run()
 

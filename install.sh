@@ -93,9 +93,9 @@ if [ ! -f "$REQUIREMENTS" ]; then
   exit 1
 fi
 
-info "正在安装依赖 (来自 $REQUIREMENTS)..."
+info "正在安装依赖..."
 $PYTHON -m pip install --upgrade pip -q
-$PYTHON -m pip install -r "$REQUIREMENTS"
+$PYTHON -m pip install -e "$SCRIPT_DIR"
 info "依赖安装完成 ✓"
 
 # =============================================================================

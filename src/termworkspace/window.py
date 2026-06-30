@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import logging
+
 from textual.binding import Binding
+
+logger = logging.getLogger(__name__)
 from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.reactive import reactive

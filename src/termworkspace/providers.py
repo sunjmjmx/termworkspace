@@ -372,8 +372,12 @@ async def _send_stream_openai(
                     yield _build_error_response(resp.status, body)
                     return
 
-                async for line in resp.content:
-                    decoded = line.decode("utf-8", errors="replace").strip()
+                # SSE 必须逐行读取 —— aiohttp.StreamReader.__aiter__ 产出的是字节块而非行
+                while True:
+                    line_bytes = await resp.content.readline()
+                    if not line_bytes:
+                        break  # EOF
+                    decoded = line_bytes.decode("utf-8", errors="replace").strip()
                     if not decoded or decoded.startswith(":"):
                         continue  # SSE 注释行 / 空行
                     if decoded.startswith("data: "):
