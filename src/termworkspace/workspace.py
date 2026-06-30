@@ -10,6 +10,7 @@ Provides:
 from __future__ import annotations
 
 import copy
+import logging
 import os
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
@@ -17,10 +18,12 @@ from typing import Any
 
 import yaml
 
+logger = logging.getLogger(__name__)
+
 from textual.containers import Grid, Horizontal, Vertical
 from textual.widget import Widget
 
-from window import AIWindowPanel
+from .window import AIWindowPanel
 
 
 # ── Data classes ──────────────────────────────────────────────────────────────
@@ -108,6 +111,7 @@ class WorkspaceManager:
         """Create a new workspace config and return its ID."""
         self._counter += 1
         ws_id = f"ws-{self._counter}"
+        logger.info("create_workspace: id=%s name=%r layout=%s", ws_id, name, layout)
         # Create default windows for the layout
         window_count = {"single": 1, "horizontal": 2, "vertical": 2, "grid": 4}
         windows = [
@@ -157,8 +161,11 @@ class WorkspaceManager:
     def delete_workspace(self, ws_id: str) -> bool:
         """Delete a workspace config. Returns True on success."""
         if ws_id in self._workspaces:
+            name = self._workspaces[ws_id].name
             del self._workspaces[ws_id]
+            logger.info("delete_workspace: id=%s name=%r", ws_id, name)
             return True
+        logger.warning("delete_workspace: id=%s not found", ws_id)
         return False
 
     # ── Export / Import ──
@@ -174,6 +181,7 @@ class WorkspaceManager:
         """
         path = Path(filepath).expanduser().resolve()
         path.parent.mkdir(parents=True, exist_ok=True)
+        logger.info("exporting workspace config to %s", path)
 
         workspaces_list = []
         for ws_id, config in self._workspaces.items():
@@ -310,6 +318,8 @@ class WorkspaceView(Widget):
         layout: str = "single",
         ws_id: str = "ws-0",
         panel_count: int | None = None,
+        workspace_name: str = "",
+        tab_name: str = "",
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -318,6 +328,8 @@ class WorkspaceView(Widget):
         self._panel_count = panel_count or {"single": 1, "horizontal": 2, "vertical": 2, "grid": 4}.get(layout, 1)
         self._panels: list[AIWindowPanel] = []
         self._available_models: list[str] = global_config.available_models
+        self._workspace_name = workspace_name
+        self._tab_name = tab_name
 
     # ── Properties ──
 
@@ -349,6 +361,8 @@ class WorkspaceView(Widget):
                 available_models=self._available_models,
                 panel_index=i,
                 id=f"{self._ws_id}-panel-{i}",
+                workspace_name=self._workspace_name,
+                tab_name=self._tab_name,
             )
             self._panels.append(panel)
 
@@ -398,6 +412,8 @@ class WorkspaceView(Widget):
                     available_models=self._available_models,
                     panel_index=i,
                     id=f"{self._ws_id}-panel-{i}",
+                    workspace_name=self._workspace_name,
+                    tab_name=self._tab_name,
                 )
             self._panels.append(panel)
             grid.mount(panel)

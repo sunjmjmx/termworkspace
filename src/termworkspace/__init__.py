@@ -1,10 +1,10 @@
-"""TermWorkspace - Terminal-based multi-model AI workspace."""
-
-__version__ = "0.1.0"
+"""TermWorkspace — 终端原生多模型 AI 工作台。
 
 Bring your own API keys, compose models across split-panel tabs,
 no platform lock-in.
 """
+
+__version__ = "0.1.0"
 
 from .app import main, TermWorkspaceApp
 from .config import ConfigManager

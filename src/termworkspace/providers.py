@@ -466,8 +466,11 @@ async def _send_stream_anthropic(
                     yield _build_error_response(resp.status, body)
                     return
 
-                async for line in resp.content:
-                    decoded = line.decode("utf-8", errors="replace").strip()
+                while True:
+                    line_bytes = await resp.content.readline()
+                    if not line_bytes:
+                        break
+                    decoded = line_bytes.decode("utf-8", errors="replace").strip()
                     if not decoded or decoded.startswith(":"):
                         continue
                     if decoded.startswith("data: "):
@@ -534,6 +537,8 @@ def _build_error_response(status_code: int, body: dict) -> dict:
         msg = error.get("message", str(error))
     else:
         msg = str(error)
+
+    logger.warning("API error: status=%s msg=%s", status_code, msg[:200])
 
     # 友好提示
     if status_code == 401:
