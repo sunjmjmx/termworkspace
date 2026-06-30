@@ -35,7 +35,7 @@ Repository = "https://github.com/termworkspace/termworkspace"
 Documentation = "https://github.com/termworkspace/termworkspace"
 
 [project.scripts]
-termworkspace = "termworkspace.app:main"
+termworkspace = "termworkspace.__main__:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/termworkspace"]
