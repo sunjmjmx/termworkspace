@@ -34,6 +34,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show version and exit",
     )
+    parser.add_argument(
+        "--init",
+        action="store_true",
+        help="Run the first-time configuration wizard",
+    )
     return parser
 
 
@@ -52,6 +57,12 @@ def main() -> None:
         import os
 
         os.environ["TERMWORKSPACE_CONFIG"] = args.config
+
+    if args.init:
+        from termworkspace.config import ConfigManager
+
+        ConfigManager.init_wizard()
+        sys.exit(0)
 
     if args.verbose:
         import logging

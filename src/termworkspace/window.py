@@ -14,6 +14,9 @@ from textual.widget import Widget
 from textual.widgets import Button, Label, Select, TextArea
 
 
+from typing import Any, Callable, Optional
+
+
 class AIWindowPanel(Widget):
     """A single AI conversation panel with history, input, and model controls.
 
@@ -116,12 +119,21 @@ class AIWindowPanel(Widget):
             self.panel = panel
             self.model_name = model_name
 
+    class ConversationCleared(Message):
+        """Posted when the user clears the conversation."""
+
+        def __init__(self, panel: AIWindowPanel) -> None:
+            super().__init__()
+            self.panel = panel
+
     def __init__(
         self,
         model_name: str = "",
         available_models: list[str] | None = None,
         *,
         panel_index: int = 0,
+        workspace_name: str = "",
+        tab_name: str = "",
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -136,6 +148,23 @@ class AIWindowPanel(Widget):
         ]
         self.messages: list[dict] = []
         self._uid = f"panel-{panel_index}"
+        self._workspace_name = workspace_name
+        self._tab_name = tab_name
+        self._save_callback: Callable[[str, str, str], None] | None = None
+        self._clear_callback: Callable[[], None] | None = None
+        self._stream_buffer: list[str] = []
+
+    # ── Session persistence properties ──
+
+    @property
+    def ws_name(self) -> str:
+        """Workspace name for storage scoping."""
+        return self._workspace_name
+
+    @property
+    def tab_name(self) -> str:
+        """Tab name for storage scoping."""
+        return self._tab_name
 
     def compose(self):
         with Vertical():
@@ -233,19 +262,28 @@ class AIWindowPanel(Widget):
     # ── Public API ──
 
     def add_message(self, role: str, content: str) -> None:
-        """Append a message to the conversation and update the display."""
+        """Append a message to the conversation and update the display.
+
+        Automatically persists to SQLite if a save callback is registered.
+        """
         self.messages.append({"role": role, "content": content})
         history = self.query_one(f"#{self._uid}-history", TextArea)
         prefix = f"\n\n── {role} ──\n" if len(self.messages) > 1 else f"── {role} ──\n"
         history.text += f"{prefix}{content}"
-        # Scroll to the bottom
         history.scroll_end(animate=False)
 
+        # Auto-save user/assistant messages to storage
+        if self._save_callback and role in ("user", "assistant"):
+            self._save_callback(role, content, self.model_name or "")
+
     def clear_conversation(self) -> None:
-        """Clear the conversation history."""
+        """Clear the conversation history and notify storage."""
         self.messages.clear()
         history = self.query_one(f"#{self._uid}-history", TextArea)
         history.text = ""
+        if self._clear_callback:
+            self._clear_callback()
+        self.post_message(self.ConversationCleared(self))
 
     def update_available_models(self, models: list[str]) -> None:
         """Refresh the model dropdown with a new list of available models."""
@@ -257,3 +295,46 @@ class AIWindowPanel(Widget):
         """Focus the input text area."""
         input_area = self.query_one(f"#{self._uid}-input", TextArea)
         input_area.focus()
+
+    # ── Session persistence API ──
+
+    def set_storage_callbacks(
+        self,
+        *,
+        on_save: Callable[[str, str, str], None] | None = None,
+        on_clear: Callable[[], None] | None = None,
+    ) -> None:
+        """Register save/clear callbacks from the app layer.
+
+        The *on_save* callback receives (role, content, model).
+        The *on_clear* callback receives no arguments.
+        """
+        self._save_callback = on_save
+        self._clear_callback = on_clear
+
+    def load_messages(self, msgs: list[dict[str, Any]]) -> None:
+        """Replace panel messages with history loaded from storage."""
+        self.messages = [{"role": m["role"], "content": m["content"]} for m in msgs]
+        history = self.query_one(f"#{self._uid}-history", TextArea)
+        parts = [f"── {m['role']} ──\n{m['content']}" for m in msgs]
+        history.text = "\n\n".join(parts)
+        if msgs:
+            history.scroll_end(animate=False)
+
+    # ── Streaming API (called from app.py) ──
+
+    def stream_chunk(self, content: str) -> None:
+        """Append a streaming text chunk to the assistant response buffer."""
+        self._stream_buffer.append(content)
+
+    def stream_end(self) -> None:
+        """Finalise streaming: flush the buffer as a complete assistant message."""
+        full = "".join(self._stream_buffer)
+        self._stream_buffer.clear()
+        if full:
+            self.add_message("assistant", full)
+
+    def stream_error(self, error_msg: str) -> None:
+        """Handle a streaming error — flush buffer and show error."""
+        self._stream_buffer.clear()
+        self.add_message("system", error_msg)
