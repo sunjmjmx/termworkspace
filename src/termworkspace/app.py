@@ -140,7 +140,7 @@ class StatusBar(Static):
 
     StatusBar Horizontal {
         height: 1;
-        align: left center;
+        align: left middle;
     }
 
     .status-item {
@@ -286,7 +286,7 @@ class TermWorkspaceApp(App):
         background: $surface;
         border-bottom: solid $border;
         padding: 0 1;
-        align: center middle;
+        align: left middle;
     }
 
     AIWindowPanel .model-select {
@@ -394,7 +394,7 @@ class TermWorkspaceApp(App):
 
     StatusBar Horizontal {
         height: 1;
-        align: left center;
+        align: left middle;
     }
 
     StatusBar .status-item {

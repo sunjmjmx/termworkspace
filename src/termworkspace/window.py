@@ -122,10 +122,14 @@ class AIWindowPanel(Widget):
         available_models: list[str] | None = None,
         *,
         panel_index: int = 0,
+        workspace_name: str = "",
+        tab_name: str = "",
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self._panel_index = panel_index
+        self.ws_name = workspace_name
+        self.tab_name = tab_name
         self.model_name = model_name
         self._available_models = available_models or [
             "gpt-4",
