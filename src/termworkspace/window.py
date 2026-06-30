@@ -136,6 +136,12 @@ class AIWindowPanel(Widget):
         ]
         self.messages: list[dict] = []
         self._uid = f"panel-{panel_index}"
+        # Streaming state (set up by app.py do_send → stream_chunk/end/error)
+        self._streaming: bool = False
+        self._streaming_content: str = ""
+        # Storage persistence callback (wired by app.py _wire_one_panel)
+        self._save_callback = None
+        self._clear_callback = None
 
     def compose(self):
         with Vertical():
@@ -242,16 +248,129 @@ class AIWindowPanel(Widget):
         history.scroll_end(animate=False)
 
     def clear_conversation(self) -> None:
-        """Clear the conversation history."""
+        """Clear the conversation history and reset streaming state."""
         self.messages.clear()
+        self._streaming = False
+        self._streaming_content = ""
         history = self.query_one(f"#{self._uid}-history", TextArea)
         history.text = ""
+
+    # ── Streaming API ────────────────────────────────────────────
+
+    def stream_chunk(self, content: str) -> None:
+        """Append a streaming content chunk to the conversation history.
+
+        On the first chunk, creates the ``── assistant ──`` header
+        automatically.  Subsequent chunks are appended in-place so the
+        TextArea content grows incrementally.
+
+        Safe to call from inside a ``do_send`` coroutine running in a
+        background ``asyncio.create_task`` — all Textual widget mutations
+        are dispatched on the main thread automatically from a Textual
+        callback context (which ``on_ai_window_panel_send_requested`` is).
+        """
+        if not self._streaming:
+            # First chunk — create the assistant header
+            self._streaming = True
+            self._streaming_content = content
+            prefix = "\n\n" if self.messages else ""
+            history = self.query_one(f"#{self._uid}-history", TextArea)
+            history.text += f"{prefix}── assistant ──\n{content}"
+        else:
+            self._streaming_content += content
+            history = self.query_one(f"#{self._uid}-history", TextArea)
+            history.text += content
+        history.scroll_end(animate=False)
+
+    def stream_end(self) -> None:
+        """Finalise the current streaming message.
+
+        Records the complete assistant message into ``self.messages``,
+        invokes the optional storage save callback, and resets the
+        streaming state.
+        """
+        if not self._streaming:
+            return
+        full_content = self._streaming_content
+        self.messages.append({"role": "assistant", "content": full_content})
+        self._streaming = False
+        self._streaming_content = ""
+        # Fire save callback if wired
+        if self._save_callback and full_content:
+            self._save_callback("assistant", full_content, self.model_name)
+
+    def stream_error(self, msg: str) -> None:
+        """Handle a streaming error.
+
+        If no content was streamed yet, removes the empty assistant
+        header so the user doesn't see a dangling heading.  Otherwise
+        appends the error message as visible text.
+        """
+        if not self._streaming:
+            # No streaming started — just add as a message
+            self.messages.append({"role": "system", "content": f"Error: {msg}"})
+            prefix = "\n\n" if self.messages else ""
+            history = self.query_one(f"#{self._uid}-history", TextArea)
+            history.text += f"{prefix}── system ──\nError: {msg}"
+            history.scroll_end(animate=False)
+            return
+
+        if not self._streaming_content.strip():
+            # No real content yet — remove the empty header we created
+            history = self.query_one(f"#{self._uid}-history", TextArea)
+            lines = history.text.rstrip("\n").split("\n")
+            # Remove the last header lines (── assistant ──\n) we pushed
+            text = "\n".join(lines).rstrip()
+            # Drop trailing "── assistant ──" if it's the last thing
+            if text.endswith("── assistant ──"):
+                text = text[: -len("── assistant ──")].rstrip("\n")
+                # Also drop the blank line separator before it
+                if text.endswith("\n\n"):
+                    text = text[:-1]
+            history.text = text
+        else:
+            # Some content was streamed — append the error
+            history = self.query_one(f"#{self._uid}-history", TextArea)
+            history.text += f"\n[Error: {msg}]"
+            history.scroll_end(animate=False)
+
+        self.messages.append({"role": "system", "content": f"Error: {msg}"})
+        self._streaming = False
+        self._streaming_content = ""
 
     def update_available_models(self, models: list[str]) -> None:
         """Refresh the model dropdown with a new list of available models."""
         self._available_models = models
         select = self.query_one(f"#{self._uid}-model-select", Select)
         select.set_options([(m, m) for m in models])
+
+    def set_storage_callbacks(self, on_save=None, on_clear=None) -> None:
+        """Wire storage persistence callbacks.
+
+        Called by ``app.py _wire_one_panel`` after mount.
+
+        ``on_save(role, content, model)`` is invoked when a complete
+        message is committed (including after ``stream_end()``).
+        ``on_clear()`` is invoked when the conversation is cleared.
+        """
+        self._save_callback = on_save
+        self._clear_callback = on_clear
+
+    def load_messages(self, msgs: list[dict]) -> None:
+        """Restore a list of messages into the conversation history.
+
+        Called by ``app.py _restore_one_panel`` during session restore.
+        Clears any existing content first, then re-adds every message
+        in order.
+        """
+        self.messages = list(msgs)
+        history = self.query_one(f"#{self._uid}-history", TextArea)
+        parts: list[str] = []
+        for msg in msgs:
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "")
+            parts.append(f"── {role} ──\n{content}")
+        history.text = "\n\n".join(parts)
 
     def focus_input(self) -> None:
         """Focus the input text area."""
