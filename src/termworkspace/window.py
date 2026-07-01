@@ -14,6 +14,9 @@ from textual.widget import Widget
 from textual.widgets import Button, Label, Select, TextArea
 
 
+from typing import Any, Callable, Optional
+
+
 class AIWindowPanel(Widget):
     """A single AI conversation panel with history, input, and model controls.
 
@@ -116,6 +119,13 @@ class AIWindowPanel(Widget):
             self.panel = panel
             self.model_name = model_name
 
+    class ConversationCleared(Message):
+        """Posted when the user clears the conversation."""
+
+        def __init__(self, panel: AIWindowPanel) -> None:
+            super().__init__()
+            self.panel = panel
+
     def __init__(
         self,
         model_name: str = "",
@@ -144,8 +154,22 @@ class AIWindowPanel(Widget):
         self._streaming: bool = False
         self._streaming_content: str = ""
         # Storage persistence callback (wired by app.py _wire_one_panel)
-        self._save_callback = None
-        self._clear_callback = None
+        self._save_callback: Callable[[str, str, str], None] | None = None
+        self._clear_callback: Callable[[], None] | None = None
+        self._workspace_name = workspace_name
+        self._tab_name = tab_name
+
+    # ── Session persistence properties ──
+
+    @property
+    def ws_name(self) -> str:
+        """Workspace name for storage scoping."""
+        return self._workspace_name
+
+    @property
+    def tab_name(self) -> str:
+        """Tab name for storage scoping."""
+        return self._tab_name
 
     def compose(self):
         with Vertical():
@@ -243,21 +267,30 @@ class AIWindowPanel(Widget):
     # ── Public API ──
 
     def add_message(self, role: str, content: str) -> None:
-        """Append a message to the conversation and update the display."""
+        """Append a message to the conversation and update the display.
+
+        Automatically persists to SQLite if a save callback is registered.
+        """
         self.messages.append({"role": role, "content": content})
         history = self.query_one(f"#{self._uid}-history", TextArea)
         prefix = f"\n\n── {role} ──\n" if len(self.messages) > 1 else f"── {role} ──\n"
         history.text += f"{prefix}{content}"
-        # Scroll to the bottom
         history.scroll_end(animate=False)
 
+        # Auto-save user/assistant messages to storage
+        if self._save_callback and role in ("user", "assistant"):
+            self._save_callback(role, content, self.model_name or "")
+
     def clear_conversation(self) -> None:
-        """Clear the conversation history and reset streaming state."""
+        """Clear the conversation history, reset streaming state, and notify storage."""
         self.messages.clear()
         self._streaming = False
         self._streaming_content = ""
         history = self.query_one(f"#{self._uid}-history", TextArea)
         history.text = ""
+        if self._clear_callback:
+            self._clear_callback()
+        self.post_message(self.ConversationCleared(self))
 
     # ── Streaming API ────────────────────────────────────────────
 
