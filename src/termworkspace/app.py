@@ -579,6 +579,8 @@ class TermWorkspaceApp(App):
         for panel in self.query(AIWindowPanel):
             await self._restore_one_panel(panel)
             self._wire_one_panel(panel)
+        # Wire forward targets after all panels are restored
+        self._wire_all_forward_targets()
 
     async def _restore_one_panel(self, panel: AIWindowPanel) -> None:
         """Load conversation history from DB into a single panel."""
@@ -607,6 +609,42 @@ class TermWorkspaceApp(App):
         for panel in self.query(AIWindowPanel):
             if panel._save_callback is None:
                 self._wire_one_panel(panel)
+        # Also wire forward targets for any new panels
+        self._wire_all_forward_targets()
+
+    # ── Forward Target Wiring ─────────────────────────────────────────
+
+    def _wire_all_forward_targets(self) -> None:
+        """Populate forward target panels for every AIWindowPanel in every workspace."""
+        for panel in self.query(AIWindowPanel):
+            self._wire_panel_forward_targets(panel)
+
+    def _wire_panel_forward_targets(self, panel: AIWindowPanel) -> None:
+        """Find sibling panels in the same WorkspaceView and set them as forward targets."""
+        # Walk up the widget tree to find the parent WorkspaceView
+        parent_view = None
+        try:
+            current = panel.parent
+            while current is not None:
+                if isinstance(current, WorkspaceView):
+                    parent_view = current
+                    break
+                current = current.parent
+        except Exception:
+            pass
+
+        if parent_view is None:
+            panel.set_forward_panels([])
+            return
+
+        siblings = parent_view.panels
+        targets = []
+        for sibling in siblings:
+            if sibling is panel:
+                continue  # exclude self
+            label = f"Panel {sibling._panel_index}"
+            targets.append({"id": sibling.id, "label": label})
+        panel.set_forward_panels(targets)
 
     # ── Workspace Export / Import ──────────────────────────────────
 
@@ -758,6 +796,47 @@ class TermWorkspaceApp(App):
                 self._update_status_bar()
 
         asyncio.create_task(do_send())
+
+    def on_ai_window_panel_forward_requested(
+        self, message: AIWindowPanel.ForwardRequested
+    ) -> None:
+        """Handle a forward request from one panel to another.
+
+        Copies the source panel's conversation into the target panel
+        as forwarded context, so the user can continue the discussion.
+        """
+        source_panel = message.source_panel
+        target_id = message.target_panel_id
+
+        # Find the target panel by widget ID
+        try:
+            target_panel = self.query_one(f"#{target_id}", AIWindowPanel)
+        except NoMatches:
+            logger.warning("forward target panel not found: %s", target_id)
+            source_panel.add_message("system", f"Target panel {target_id} not found.")
+            return
+
+        if not source_panel.messages:
+            source_panel.add_message("system", "No messages to forward.")
+            return
+
+        # Forward the messages — preserve full context
+        source_name = f"Panel {source_panel._panel_index}"
+        source_msgs = list(source_panel.messages)
+        target_panel.forward_to(source_msgs, source_name=source_name)
+
+        # Notify both panels
+        self.notify(
+            f"Forwarded {len(source_msgs)} message(s) to Panel {target_panel._panel_index}",
+            title="Forward",
+            timeout=3,
+        )
+        logger.info(
+            "forwarded %d messages from %s → %s",
+            len(source_msgs),
+            source_panel.id,
+            target_id,
+        )
 
     def on_ai_window_panel_model_changed(self, message: AIWindowPanel.ModelChanged) -> None:
         """Handle model selection changes."""
