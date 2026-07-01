@@ -1,0 +1,26 @@
+============================================================
+  TermWorkspace — 首次配置向导
+============================================================
+
+请配置 AI 模型的 API Key（至少填写一个即可）
+
+── deepseek ──
+   默认地址: https://api.deepseek.com/v1
+   API 地址 (回车使用默认):    API Key (回车跳过):    ✓ deepseek 已配置
+
+── openai ──
+   默认地址: https://api.openai.com/v1
+   API 地址 (回车使用默认):    API Key (回车跳过):    - openai 已跳过
+
+── anthropic ──
+   默认地址: https://api.anthropic.com/v1
+   API 地址 (回车使用默认):    API Key (回车跳过):    - anthropic 已跳过
+
+   deepseek 模型列表 (逗号分隔，回车使用默认: deepseek-chat, deepseek-reasoner): 
+工作区名称 (回车使用「默认工作区」): 
+主题 dark/light (回车使用 dark): 
+
+✓ 配置文件已生成: /Users/sunjmj/.termworkspace/config.yaml
+  你可以随时编辑此文件修改配置。
+
+Configuration complete. Run 'termworkspace' to start.
