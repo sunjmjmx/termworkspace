@@ -79,6 +79,12 @@ class AIWindowPanel(Widget):
         margin-left: 1;
     }
 
+    .forward-select {
+        width: 12;
+        min-width: 12;
+        margin-left: 1;
+    }
+
     .conversation-history {
         height: 1fr;
         border: solid $border;
@@ -125,6 +131,14 @@ class AIWindowPanel(Widget):
             super().__init__()
             self.panel = panel
 
+    class ForwardRequested(Message):
+        """Posted when the user selects a target panel to forward to."""
+
+        def __init__(self, source_panel: AIWindowPanel, target_panel_id: str) -> None:
+            super().__init__()
+            self.source_panel = source_panel
+            self.target_panel_id = target_panel_id
+
     def __init__(
         self,
         model_name: str = "",
@@ -157,6 +171,8 @@ class AIWindowPanel(Widget):
         self._clear_callback: Callable[[], None] | None = None
         self._workspace_name = workspace_name
         self._tab_name = tab_name
+        # Forward target panels (populated by app.py)
+        self._forward_panels: list[dict[str, str]] = []
 
     # ── Session persistence properties ──
 
@@ -172,7 +188,7 @@ class AIWindowPanel(Widget):
 
     def compose(self):
         with Vertical():
-            # ── Header: model select + status + clear ──
+            # ── Header: model select + status + clear + forward dropdown ──
             with Horizontal(classes="window-header"):
                 yield Select(
                     [(m, m) for m in self._available_models],
@@ -188,6 +204,13 @@ class AIWindowPanel(Widget):
                 )
                 yield Button(
                     "✕ Clear", id=f"{self._uid}-clear", variant="error", classes="clear-btn"
+                )
+                yield Select(
+                    [],
+                    prompt="↗ Fwd...",
+                    id=f"{self._uid}-forward-select",
+                    classes="forward-select",
+                    disabled=True,
                 )
 
             # ── Conversation history (read-only) ──
@@ -241,12 +264,21 @@ class AIWindowPanel(Widget):
     # ── Event handlers ──
 
     def on_select_changed(self, event: Select.Changed) -> None:
-        """Handle model selection changes."""
+        """Handle model selection and forward target selection changes."""
         if event.select.id == f"{self._uid}-model-select" and event.value:
             old_name = self.model_name
             self.model_name = str(event.value)
             if old_name != str(event.value):
                 self.post_message(self.ModelChanged(self, str(event.value)))
+        elif event.select.id == f"{self._uid}-forward-select" and event.value:
+            target_id = str(event.value)
+            # Reset the select so the same panel can be selected again
+            forward_select = self.query_one(f"#{self._uid}-forward-select", Select)
+            try:
+                forward_select.value = None
+            except Exception:
+                pass
+            self.post_message(self.ForwardRequested(self, target_id))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button clicks."""
@@ -257,7 +289,7 @@ class AIWindowPanel(Widget):
 
     def action_send_message(self) -> None:
         """Send the current input as a user message (Ctrl+Enter)."""
-        input_area = self.query_one(f"#{self._uid}-input", TextArea)
+        input_area = self.query_one(f"{self._uid}-input", TextArea)
         message = input_area.text.strip()
         if not message:
             return
@@ -287,11 +319,58 @@ class AIWindowPanel(Widget):
         self.messages.clear()
         self._streaming = False
         self._streaming_content = ""
-        history = self.query_one(f"#{self._uid}-history", TextArea)
+        history = self.query_one(f"{self._uid}-history", TextArea)
         history.text = ""
         if self._clear_callback:
             self._clear_callback()
         self.post_message(self.ConversationCleared(self))
+
+    def forward_to(self, messages: list[dict], source_name: str = "") -> None:
+        """Inject forwarded messages from another panel into this one.
+
+        Prepends the forwarded messages (with a visible header) so the user
+        can continue the conversation with full context preserved.
+        """
+        if not messages:
+            return
+        # Record the forwarded messages in our internal list
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            entry: dict = {"role": role, "content": content}
+            if source_name:
+                entry["forwarded_from"] = source_name
+            self.messages.append(entry)
+
+        # Update the display
+        history = self.query_one(f"{self._uid}-history", TextArea)
+        if source_name:
+            header = f"\n\n╌╌ forwarded from {source_name} ╌╌\n"
+        else:
+            header = "\n\n╌╌ forwarded ╌╌\n"
+        parts = [header]
+        for msg in messages:
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "")
+            parts.append(f"── {role} ──\n{content}")
+        history.text += "\n\n".join(parts)
+        history.scroll_end(animate=False)
+        self.focus_input()
+
+    def set_forward_panels(self, panels: list[dict[str, str]]) -> None:
+        """Set the list of available target panels for forwarding.
+
+        ``panels`` is a list of ``{id, label}`` dicts describing sibling panels.
+        Called by app.py after mounting all panels.
+        """
+        self._forward_panels = list(panels)
+        forward_select = self.query_one(f"#{self._uid}-forward-select", Select)
+        if panels:
+            forward_select.set_options([(p["label"], p["id"]) for p in panels])
+            forward_select.disabled = False
+        else:
+            forward_select.set_options([])
+            forward_select.disabled = True
 
     # ── Streaming API ────────────────────────────────────────────
 
