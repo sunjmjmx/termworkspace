@@ -256,6 +256,137 @@ class ConfigManager:
         config = cls.load()
         return config.get("theme", "dark")
 
+    # ── 模板导入/导出 ────────────────────────────
+
+    @classmethod
+    def export_workspace(
+        cls,
+        filepath: str | Path,
+        workspace_key: str | None = None,
+    ) -> bool:
+        """将当前配置中的 workspace(s) 导出为 YAML 模板文件。
+
+        Args:
+            filepath: 输出 YAML 文件路径。
+            workspace_key: 要导出的 workspace key（如 'writing'）。
+                          为 None 时导出所有 workspace。
+
+        Returns:
+            True 表示成功，False 表示失败。
+        """
+        config = cls.load()
+        workspaces = config.get("workspaces", {})
+
+        if not workspaces:
+            logger.warning("no workspaces to export")
+            return False
+
+        if workspace_key is not None:
+            if workspace_key not in workspaces:
+                logger.error("workspace '%s' not found", workspace_key)
+                return False
+            data = {"workspaces": {workspace_key: workspaces[workspace_key]}}
+        else:
+            data = {"workspaces": workspaces}
+
+        # Write YAML
+        try:
+            dest = Path(filepath)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            with open(dest, "w", encoding="utf-8") as f:
+                yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False, indent=2)
+            logger.info("workspace exported to %s", dest)
+            return True
+        except OSError as exc:
+            logger.error("failed to export workspace: %s", exc)
+            return False
+
+    @classmethod
+    def import_workspace_template(
+        cls,
+        filepath: str | Path,
+    ) -> tuple[int, list[str]]:
+        """从 YAML 模板文件导入 workspace(s)，合并到当前配置。
+
+        支持两种格式：
+          - 纯 workspaces::
+              workspaces:
+                writing: { ... }
+          - 含 template 元数据::
+              template: { name, description, ... }
+              workspaces: { ... }
+
+        Args:
+            filepath: 模板 YAML 文件路径。
+
+        Returns:
+            (imported_count, imported_keys) — 导入的 workspace 数量和 key 列表。
+            导入的 workspace 会覆盖同名的已有 workspace。
+        """
+        src = Path(filepath)
+        if not src.is_file():
+            logger.error("template file not found: %s", src)
+            return 0, []
+
+        try:
+            with open(src, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+        except (OSError, yaml.YAMLError) as exc:
+            logger.error("failed to read template: %s", exc)
+            return 0, []
+
+        workspaces = data.get("workspaces", {})
+        if not workspaces or not isinstance(workspaces, dict):
+            logger.warning("no workspaces found in template: %s", src)
+            return 0, []
+
+        # Merge into current config
+        config = cls.load()
+        existing = config.setdefault("workspaces", {})
+
+        imported_keys: list[str] = []
+        for key, ws_config in workspaces.items():
+            existing[key] = ws_config
+            imported_keys.append(key)
+
+        cls.save(config)
+        logger.info("imported %d workspace(s) from %s: %s", len(imported_keys), src, imported_keys)
+        return len(imported_keys), imported_keys
+
+    @classmethod
+    def list_template_dir(cls, templates_dir: str | Path = "docs/templates") -> list[dict[str, str]]:
+        """扫描模板目录，列出所有可用模板的元信息。
+
+        Args:
+            templates_dir: 模板目录路径（默认 docs/templates）。
+
+        Returns:
+            模板信息列表，每项包含 name, description, filepath。
+        """
+        td = Path(templates_dir)
+        if not td.is_dir():
+            return []
+
+        templates: list[dict[str, str]] = []
+        for yaml_file in sorted(td.glob("*.yaml")):
+            try:
+                with open(yaml_file, "r", encoding="utf-8") as f:
+                    data = yaml.safe_load(f) or {}
+
+                tmpl = data.get("template", {})
+                ws_count = len(data.get("workspaces", {}))
+
+                templates.append({
+                    "name": tmpl.get("name", yaml_file.stem),
+                    "description": tmpl.get("description", ""),
+                    "filepath": str(yaml_file),
+                    "workspace_count": str(ws_count),
+                })
+            except (OSError, yaml.YAMLError):
+                continue
+
+        return templates
+
 
 # ── 内部工具函数 ──────────────────────────────
 

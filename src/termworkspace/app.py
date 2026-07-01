@@ -1,10 +1,11 @@
+# -*- coding: utf-8 -*-
 """TermWorkspace — A terminal-based AI workspace with split-panel conversations.
 
-Entry point::
-    textual run src/app.py
+Entry point (after pip install)::
+    termworkspace
 
-Or from project root::
-    python3 -m src.app
+Or::
+    python3 -m termworkspace
 
 Keyboard shortcuts:
   Ctrl+T  → New tab
@@ -14,32 +15,108 @@ Keyboard shortcuts:
 
 from __future__ import annotations
 import asyncio
+import logging
 import os
 import sys
+from pathlib import Path
 
-# Ensure src is on path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import yaml
+
+logger = logging.getLogger(__name__)
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal
+from textual.containers import Container, Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.reactive import reactive
-from textual.widgets import (
-    Button,
-    Footer,
-    Header,
-    Label,
-    Static,
-    TabbedContent,
-    TabPane,
-)
+from textual.screen import ModalScreen
+from textual.widgets import Button, Footer, Header, Input, Label, Static, TabbedContent, TabPane
 
-from window import AIWindowPanel
-from workspace import WorkspaceView, WorkspaceManager, global_config
-from providers import ProviderManager as RealProviderManager
-from providers import send_message
-from config import ConfigManager
+from .window import AIWindowPanel
+from .workspace import WorkspaceView, WorkspaceManager, global_config
+from .providers import ProviderManager as RealProviderManager
+from .providers import send_message
+from .config import ConfigManager
+from .storage import StorageManager
+
+
+# ── File Path Prompt Screen ──────────────────────────────────────────────────
+
+
+class FilePromptScreen(ModalScreen[str | None]):
+    """Modal screen that asks the user for a file path.
+
+    Returns the path string on submit, or ``None`` if cancelled.
+    """
+
+    DEFAULT_CSS = """
+    FilePromptScreen {
+        align: center middle;
+    }
+
+    FilePromptScreen > Vertical {
+        width: 60;
+        height: auto;
+        padding: 2;
+        background: $surface;
+        border: thick $primary;
+    }
+
+    FilePromptScreen Label {
+        text-style: bold;
+        margin-bottom: 1;
+    }
+
+    FilePromptScreen Input {
+        margin-bottom: 1;
+    }
+
+    FilePromptScreen Horizontal {
+        height: auto;
+        align: right middle;
+    }
+
+    FilePromptScreen Button {
+        margin-left: 1;
+    }
+    """
+
+    def __init__(
+        self,
+        title: str = "File Path",
+        placeholder: str = "/path/to/file.yaml",
+        default: str = "",
+        ok_label: str = "Confirm",
+    ) -> None:
+        super().__init__()
+        self._prompt_title = title
+        self._placeholder = placeholder
+        self._default = default
+        self._ok_label = ok_label
+
+    def compose(self) -> ComposeResult:
+        yield Vertical(
+            Label(self._prompt_title),
+            Input(
+                placeholder=self._placeholder,
+                value=self._default,
+                id="file-path-input",
+            ),
+            Horizontal(
+                Button("Cancel", id="cancel-btn", variant="error"),
+                Button(self._ok_label, id="ok-btn", variant="primary"),
+            ),
+        )
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        self.dismiss(event.value.strip())
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel-btn":
+            self.dismiss(None)
+        elif event.button.id == "ok-btn":
+            inp = self.query_one("#file-path-input", Input)
+            self.dismiss(inp.value.strip())
 
 
 # ── StatusBar ─────────────────────────────────────────────────────────────────
@@ -63,7 +140,7 @@ class StatusBar(Static):
 
     StatusBar Horizontal {
         height: 1;
-        align: left center;
+        align: left middle;
     }
 
     .status-item {
@@ -115,7 +192,7 @@ class StatusBar(Static):
 
 
 class TermWorkspaceApp(App):
-    """TermWorkspace — A terminal-based AI workspace application."""
+    """TermWorkspace - A terminal-based AI workspace application."""
 
     TITLE = "TermWorkspace"
     SUB_TITLE = "Multi-window AI workspace"
@@ -209,7 +286,7 @@ class TermWorkspaceApp(App):
         background: $surface;
         border-bottom: solid $border;
         padding: 0 1;
-        align: center middle;
+        align: left middle;
     }
 
     AIWindowPanel .model-select {
@@ -317,7 +394,7 @@ class TermWorkspaceApp(App):
 
     StatusBar Horizontal {
         height: 1;
-        align: left center;
+        align: left middle;
     }
 
     StatusBar .status-item {
@@ -356,22 +433,36 @@ class TermWorkspaceApp(App):
         self._tab_counter = 0
         self._provider_mgr = RealProviderManager()
         self._config_mgr = ConfigManager()
-        self._load_user_config()
+        try:
+            self._load_user_config()
+        except Exception as exc:
+            logger.warning("Failed to load user config: %s", exc)
+            # App runs without config; user can configure via --init or ~/.termworkspace/config.yaml
 
     def _load_user_config(self) -> None:
         """Load user config from ~/.termworkspace/config.yaml."""
         config = self._config_mgr.load()
-        if config and "providers" in config:
-            self._provider_mgr.load_from_config(config["providers"])
-            # Populate model list for workspace panels
-            models = self._provider_mgr.get_available_models()
-            global_config.providers.clear()
-            for provider_name, model_name in models:
-                from workspace import ProviderConfig as WSProvider
-                global_config.providers.append(
-                    WSProvider(name=provider_name, model=model_name, api_key="", base_url="", online=True)
-                )
-            global_config.available_models  # trigger property refresh
+        if not config or "providers" not in config:
+            logger.info("no provider config found — run with --init to set up")
+            return
+
+        self._provider_mgr.load_from_config(config["providers"])
+        # Populate model list for workspace panels
+        models = self._provider_mgr.get_available_models()
+        global_config.providers.clear()
+        for provider_name, model_name in models:
+            from .workspace import ProviderConfig as WSProvider
+            global_config.providers.append(
+                WSProvider(name=provider_name, model=model_name, api_key="", base_url="", online=True)
+            )
+        global_config.available_models  # trigger property refresh
+
+        # 验证至少有一个有效的 API key
+        configured = {k: v for k, v in config.get("providers", {}).items() if v.get("api_key")}
+        if not configured:
+            logger.warning("config found but no API keys configured — run with --init")
+        else:
+            logger.info("loaded %d configured provider(s): %s", len(configured), list(configured.keys()))
 
     # ── Compose ───────────────────────────────────────────────────
 
@@ -384,11 +475,11 @@ class TermWorkspaceApp(App):
         yield StatusBar(id="status-bar")
 
     def on_mount(self) -> None:
-        """Post-mount setup: set initial status and focus first input."""
+        """Post-mount setup: init persistence, restore session, set callbacks."""
         self._tab_counter = 1
         self._update_status_bar()
-        # Focus the input of the first panel in the first workspace
-        self._focus_active_panel_input()
+        # Init DB — fire-and-forget so the UI renders immediately
+        asyncio.create_task(self._post_mount_init())
 
     # ── Tab Actions ───────────────────────────────────────────────
 
@@ -406,6 +497,8 @@ class TermWorkspaceApp(App):
         tabs.active = tab_id
         self._update_status_bar()
         self._focus_active_panel_input()
+        # Wire persistence on the new tab's panels (mount kicks in after refresh)
+        self.call_after_refresh(self._wire_panels_on_next_refresh)
 
     def action_close_tab(self) -> None:
         """Close the currently active tab (Ctrl+W)."""
@@ -463,6 +556,142 @@ class TermWorkspaceApp(App):
         except (NoMatches, IndexError):
             pass
 
+    # ── Session Persistence ──────────────────────────────────────────
+
+    async def _post_mount_init(self) -> None:
+        """Init DB, restore session history, wire persistence callbacks.
+
+        Runs once after mount so the UI renders before blocking on I/O.
+        """
+        await StorageManager.init_db()
+        await self._restore_and_wire_all_panels()
+        self._focus_active_panel_input()
+
+    async def _restore_and_wire_all_panels(self) -> None:
+        """Load history from DB into every panel and wire save/clear callbacks."""
+        for panel in self.query(AIWindowPanel):
+            await self._restore_one_panel(panel)
+            self._wire_one_panel(panel)
+
+    async def _restore_one_panel(self, panel: AIWindowPanel) -> None:
+        """Load conversation history from DB into a single panel."""
+        msgs = await StorageManager.get_history(
+            panel.ws_name, panel.tab_name, panel._uid
+        )
+        if msgs:
+            panel.load_messages(msgs)
+
+    def _wire_one_panel(self, panel: AIWindowPanel) -> None:
+        """Attach save/clear callbacks to a single panel."""
+        ws_name = panel.ws_name
+        tab_name = panel.tab_name
+        window_id = panel._uid
+
+        def on_save(role: str, content: str, model: str) -> None:
+            asyncio.create_task(
+                StorageManager.save_message(
+                    ws_name, tab_name, window_id, role, content, model
+                )
+            )
+
+        def on_clear() -> None:
+            asyncio.create_task(
+                StorageManager.clear_history(ws_name, tab_name, window_id)
+            )
+
+        panel.set_storage_callbacks(on_save=on_save, on_clear=on_clear)
+
+    def _wire_panels_on_next_refresh(self) -> None:
+        """Wire any panels that aren't yet wired (e.g. new tab panels)."""
+        for panel in self.query(AIWindowPanel):
+            if panel._save_callback is None:
+                self._wire_one_panel(panel)
+
+    # ── Workspace Export / Import ──────────────────────────────────
+
+    def action_export_workspace(self) -> None:
+        """Export current workspace configuration to a YAML file (Ctrl+Shift+E)."""
+        default_path = f"~/termworkspace-export-{self._tab_counter}.yaml"
+
+        def handle_export(path: str | None) -> None:
+            if not path:
+                return
+            try:
+                resolved = self._ws_manager.export_to_yaml(path)
+                self.notify(
+                    f"Exported {len(self._ws_manager.list_workspaces())} workspace(s)"
+                    f" to {resolved}",
+                    title="Export Success",
+                    timeout=5,
+                )
+            except Exception as exc:
+                self.notify(
+                    f"Export failed: {exc}",
+                    title="Export Error",
+                    severity="error",
+                    timeout=5,
+                )
+
+        self.push_screen(
+            FilePromptScreen(
+                title="Export Workspace Config",
+                placeholder="~/termworkspace-export.yaml",
+                default=default_path,
+                ok_label="Export",
+            ),
+            handle_export,
+        )
+
+    def action_import_workspace(self) -> None:
+        """Import workspace configuration from a YAML file (Ctrl+Shift+I)."""
+
+        def handle_import(path: str | None) -> None:
+            if not path:
+                return
+            try:
+                count = self._ws_manager.import_from_yaml(path, replace=False)
+                self.notify(
+                    f"Imported {count} workspace(s) from {path}",
+                    title="Import Success",
+                    timeout=5,
+                )
+                # Refresh all WorkspaceView widgets with the new model list
+                for pane in self.query(TabPane):
+                    try:
+                        wsv = pane.query_one(WorkspaceView)
+                        wsv.refresh_available_models()
+                    except NoMatches:
+                        pass
+                self._update_status_bar()
+            except FileNotFoundError:
+                self.notify(
+                    f"File not found: {path}",
+                    title="Import Error",
+                    severity="error",
+                    timeout=5,
+                )
+            except Exception as exc:
+                self.notify(
+                    f"Import failed: {exc}",
+                    title="Import Error",
+                    severity="error",
+                    timeout=5,
+                )
+
+        # Look in project's docs/templates/ for suggestions
+        project_templates = Path(__file__).resolve().parent.parent.parent / "docs" / "templates"
+        default_path = str(project_templates / "general-writing.yaml") if project_templates.is_dir() else ""
+
+        self.push_screen(
+            FilePromptScreen(
+                title="Import Workspace from YAML",
+                placeholder="/path/to/template.yaml",
+                default=default_path,
+                ok_label="Import",
+            ),
+            handle_import,
+        )
+
     # ── Periodic refresh ──────────────────────────────────────────
 
     def set_interval_refresh(self, interval: float = 5.0) -> None:
@@ -493,20 +722,36 @@ class TermWorkspaceApp(App):
         async def do_send():
             panel.status = "thinking"
             try:
-                result = await send_message(
+                generator = await send_message(
                     model_name=model_key,
                     messages=[{"role": "user", "content": user_text}],
                     system_prompt=system_prompt,
                     provider_manager=self._provider_mgr,
-                    stream=False,
+                    stream=True,
                 )
-                if "error" in result:
-                    panel.add_message("system", f"Error: {result['error']}")
-                else:
-                    content = result.get("content", "")
-                    panel.add_message("assistant", content)
+                async for chunk in generator:
+                    if chunk.get("done"):
+                        panel.stream_end()
+                    elif chunk.get("error"):
+                        panel.stream_error(chunk.get("content", ""))
+                    else:
+                        content = chunk.get("content", "")
+                        if content:
+                            panel.stream_chunk(content)
+            except ValueError as e:
+                # 配置缺失（无 API key / base URL / 模型名）
+                logger.warning("send_message config error: %s", e)
+                panel.stream_error(str(e))
+            except aiohttp.ClientError as e:
+                # 网络连接失败
+                logger.error("send_message network error: %s", e)
+                panel.stream_error(f"网络连接失败: {e}")
+            except asyncio.TimeoutError:
+                logger.error("send_message timeout")
+                panel.stream_error("请求超时，请检查网络连接")
             except Exception as e:
-                panel.add_message("system", f"Error: {str(e)}")
+                logger.exception("send_message unexpected error")
+                panel.stream_error(f"未知错误: {e}")
             finally:
                 panel.status = "idle"
                 self._update_status_bar()
@@ -524,6 +769,16 @@ class TermWorkspaceApp(App):
             timeout=3,
         )
 
+    def on_ai_window_panel_conversation_cleared(
+        self, message: AIWindowPanel.ConversationCleared
+    ) -> None:
+        """Handle a clear-conversation request from any panel.
+        
+        Clears persisted messages from storage as well.
+        """
+        panel = message.panel
+        asyncio.create_task(self._clear_storage(panel))
+
     def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
         """Focus the input when switching tabs."""
         self.call_after_refresh(self._focus_active_panel_input)
@@ -533,7 +788,71 @@ class TermWorkspaceApp(App):
 
 
 def main() -> None:
-    """Run the TermWorkspace application."""
+    "Run the TermWorkspace application."
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="termworkspace",
+        description="TermWorkspace - Terminal-native multi-model AI workspace",
+        epilog=(
+            "Keyboard shortcuts inside the app:\n"
+            "  Ctrl+T  New workspace tab\n"
+            "  Ctrl+W  Close current tab\n"
+            "  Ctrl+Q  Quit"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="termworkspace 0.1.0",
+        help="show version and exit",
+    )
+    parser.add_argument(
+        "-c", "--config",
+        metavar="PATH",
+        help="path to config YAML (default: ~/.termworkspace/config.yaml)",
+    )
+    parser.add_argument(
+        "--theme",
+        choices=["dark", "light"],
+        default=None,
+        help="override theme (default: from config or dark)",
+    )
+    parser.add_argument(
+        "--init",
+        action="store_true",
+        help="run the initial setup wizard and exit",
+    )
+
+    args = parser.parse_args()
+
+    if args.init:
+        from .config import ConfigManager
+        config = ConfigManager.init_wizard()
+        if config:
+            print("Configuration complete. Run 'termworkspace' to start.")
+        return
+
+    if args.config:
+        os.environ["TERMWORKSPACE_CONFIG"] = args.config
+
+    # 自动启动配置向导（如果没有配置文件）
+    from .config import ConfigManager as _CM
+    if not _CM.exists():
+        print()
+        print("~" * 50)
+        print("  检测到首次运行：未找到配置文件")
+        print("  将启动配置向导引导您设置 API Key")
+        print("~" * 50)
+        print()
+        _CM.init_wizard()
+
     app = TermWorkspaceApp()
     app.run()
 

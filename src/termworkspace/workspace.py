@@ -10,13 +10,20 @@ Provides:
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass, field
+import logging
+import os
+from dataclasses import dataclass, field, asdict
+from pathlib import Path
 from typing import Any
+
+import yaml
+
+logger = logging.getLogger(__name__)
 
 from textual.containers import Grid, Horizontal, Vertical
 from textual.widget import Widget
 
-from window import AIWindowPanel
+from .window import AIWindowPanel
 
 
 # ── Data classes ──────────────────────────────────────────────────────────────
@@ -104,6 +111,7 @@ class WorkspaceManager:
         """Create a new workspace config and return its ID."""
         self._counter += 1
         ws_id = f"ws-{self._counter}"
+        logger.info("create_workspace: id=%s name=%r layout=%s", ws_id, name, layout)
         # Create default windows for the layout
         window_count = {"single": 1, "horizontal": 2, "vertical": 2, "grid": 4}
         windows = [
@@ -153,9 +161,129 @@ class WorkspaceManager:
     def delete_workspace(self, ws_id: str) -> bool:
         """Delete a workspace config. Returns True on success."""
         if ws_id in self._workspaces:
+            name = self._workspaces[ws_id].name
             del self._workspaces[ws_id]
+            logger.info("delete_workspace: id=%s name=%r", ws_id, name)
             return True
+        logger.warning("delete_workspace: id=%s not found", ws_id)
         return False
+
+    # ── Export / Import ──
+
+    def export_to_yaml(self, filepath: str | Path) -> str:
+        """Export all current workspace configs to a YAML file.
+
+        Args:
+            filepath: Where to write the exported YAML.
+
+        Returns:
+            The absolute path the file was written to.
+        """
+        path = Path(filepath).expanduser().resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        logger.info("exporting workspace config to %s", path)
+
+        workspaces_list = []
+        for ws_id, config in self._workspaces.items():
+            entry = asdict(config)
+            entry["_id"] = ws_id
+            workspaces_list.append(entry)
+
+        data: dict[str, Any] = {
+            "version": 1,
+            "description": "TermWorkspace exported workspace configuration",
+            "workspaces": workspaces_list,
+        }
+
+        with open(path, "w", encoding="utf-8") as f:
+            yaml.dump(
+                data,
+                f,
+                default_flow_style=False,
+                allow_unicode=True,
+                sort_keys=False,
+                indent=2,
+            )
+        return str(path)
+
+    def import_from_yaml(
+        self,
+        filepath: str | Path,
+        *,
+        replace: bool = False,
+    ) -> int:
+        """Import workspace configs from a YAML file.
+
+        Args:
+            filepath: Path to the YAML file to import.
+            replace: If True, clear existing workspaces first.
+
+        Returns:
+            Number of workspaces imported.
+
+        Raises:
+            FileNotFoundError: if the file does not exist.
+            ValueError: if the YAML is malformed or missing required fields.
+        """
+        path = Path(filepath).expanduser().resolve()
+        if not path.is_file():
+            raise FileNotFoundError(f"Workspace template not found: {path}")
+
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+
+        if not isinstance(data, dict):
+            raise ValueError("YAML root must be a mapping")
+
+        # Support both single-workspace and list formats
+        raw_workspaces = data.get("workspaces", [])
+
+        if isinstance(raw_workspaces, dict):
+            # E.g. { "writing": {...}, "coding": {...} }
+            ws_list = []
+            for ws_id, ws_data in raw_workspaces.items():
+                if isinstance(ws_data, dict):
+                    ws_data["_id"] = ws_id
+                    ws_list.append(ws_data)
+            raw_workspaces = ws_list
+
+        if not isinstance(raw_workspaces, list):
+            raise ValueError("'workspaces' must be a list or dict")
+
+        if replace:
+            self._workspaces.clear()
+
+        imported = 0
+        for entry in raw_workspaces:
+            if not isinstance(entry, dict):
+                continue
+
+            name = entry.get("name", f"Imported {imported + 1}")
+            layout = entry.get("layout", "single")
+            if layout not in ("single", "horizontal", "vertical", "grid"):
+                layout = "single"
+
+            # Build WindowConfig list — support both 'windows' and 'panes' keys
+            raw_windows = entry.get("windows") or entry.get("panes") or []
+            windows: list[WindowConfig] = []
+            for w in raw_windows:
+                if isinstance(w, str):
+                    windows.append(WindowConfig(model_name=w))
+                elif isinstance(w, dict):
+                    windows.append(
+                        WindowConfig(
+                            model_name=w.get("model_name") or w.get("model") or "",
+                            panel_id=w.get("panel_id") or w.get("id") or "",
+                        )
+                    )
+
+            self._counter += 1
+            ws_id = f"ws-{self._counter}"
+            config = WorkspaceConfig(name=name, layout=layout, windows=windows)
+            self._workspaces[ws_id] = config
+            imported += 1
+
+        return imported
 
 
 # ── WorkspaceView ─────────────────────────────────────────────────────────────
@@ -190,6 +318,8 @@ class WorkspaceView(Widget):
         layout: str = "single",
         ws_id: str = "ws-0",
         panel_count: int | None = None,
+        workspace_name: str = "",
+        tab_name: str = "",
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -198,6 +328,8 @@ class WorkspaceView(Widget):
         self._panel_count = panel_count or {"single": 1, "horizontal": 2, "vertical": 2, "grid": 4}.get(layout, 1)
         self._panels: list[AIWindowPanel] = []
         self._available_models: list[str] = global_config.available_models
+        self._workspace_name = workspace_name
+        self._tab_name = tab_name
 
     # ── Properties ──
 
@@ -229,6 +361,8 @@ class WorkspaceView(Widget):
                 available_models=self._available_models,
                 panel_index=i,
                 id=f"{self._ws_id}-panel-{i}",
+                workspace_name=self._workspace_name,
+                tab_name=self._tab_name,
             )
             self._panels.append(panel)
 
@@ -278,6 +412,8 @@ class WorkspaceView(Widget):
                     available_models=self._available_models,
                     panel_index=i,
                     id=f"{self._ws_id}-panel-{i}",
+                    workspace_name=self._workspace_name,
+                    tab_name=self._tab_name,
                 )
             self._panels.append(panel)
             grid.mount(panel)

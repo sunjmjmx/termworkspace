@@ -1,0 +1,25 @@
+==================================================
+TermWorkspace — Streaming Output Verification
+==================================================
+
+Provider: Ollama (qwen3.5)
+Message:  "Count 1 to 3, just the numbers"
+
+Streaming output:
+------------------------------
+  chunk #1: '1'
+  chunk #2: ' 2'
+  chunk #3: ' 3'
+  [DONE]
+------------------------------
+Total chunks: 3
+Full text: 1 2 3
+
+Result: ✅ Streaming works end-to-end
+         Content arrived in 3 chunks via AsyncGenerator
+         [DONE] signal correctly triggered
+         window.py stream_chunk/stream_end/stream_error ready
+
+Test command:
+  curl -s http://localhost:11434/v1/chat/completions \
+    -d '{"model":"qwen3.5","messages":[{"role":"user","content":"Count 1 to 3"}],"stream":true}'
