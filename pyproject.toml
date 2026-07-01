@@ -29,10 +29,19 @@ dependencies = [
     "aiosqlite>=0.19.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=9",
+    "pytest-asyncio>=0.25",
+    "pytest-timeout>=2",
+    "ruff>=0.15",
+    "mypy>=2.0",
+]
+
 [project.urls]
-Homepage = "https://github.com/termworkspace/termworkspace"
-Repository = "https://github.com/termworkspace/termworkspace"
-Documentation = "https://github.com/termworkspace/termworkspace"
+Homepage = "https://github.com/sunjmjmx/termworkspace"
+Repository = "https://github.com/sunjmjmx/termworkspace"
+Documentation = "https://github.com/sunjmjmx/termworkspace"
 
 [project.scripts]
 termworkspace = "termworkspace.__main__:main"
@@ -42,3 +51,32 @@ packages = ["src/termworkspace"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+# ── Ruff (lint + format) ──
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "RUF100"]
+ignore = ["E501"]  # line-length handled by formatter
+
+[tool.ruff.format]
+quote-style = "double"
+
+# ── mypy ──
+[tool.mypy]
+python_version = "3.12"
+strict = false
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_return_any = false
+ignore_missing_imports = true
+exclude = [".venv/"]
+
+# ── pytest ──
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+timeout = 30

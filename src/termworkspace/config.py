@@ -7,11 +7,9 @@ ConfigManager: 读取 / 写入 ~/.termworkspace/config.yaml
 
 from __future__ import annotations
 
-import os
-import sys
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -88,7 +86,7 @@ class ConfigManager:
             return {}
 
         try:
-            with open(cls.CONFIG_PATH, "r", encoding="utf-8") as f:
+            with open(cls.CONFIG_PATH, encoding="utf-8") as f:
                 config = yaml.safe_load(f) or {}
             logger.debug("config loaded from %s", cls.CONFIG_PATH)
             return config
@@ -144,11 +142,11 @@ class ConfigManager:
         for pname, pcfg in providers.items():
             print(f"── {pname} ──")
             print(f"   默认地址: {pcfg.get('base_url', '')}")
-            url = input(f"   API 地址 (回车使用默认): ").strip()
+            url = input("   API 地址 (回车使用默认): ").strip()
             if url:
                 pcfg["base_url"] = url.rstrip("/")
 
-            key = input(f"   API Key (回车跳过): ").strip()
+            key = input("   API Key (回车跳过): ").strip()
             if key:
                 pcfg["api_key"] = key
                 print(f"   ✓ {pname} 已配置")
@@ -204,7 +202,7 @@ class ConfigManager:
     # ── 模型 key 解析 ─────────────────────────
 
     @classmethod
-    def get_model_provider(cls, model_key: str) -> tuple[Optional[str], Optional[str]]:
+    def get_model_provider(cls, model_key: str) -> tuple[str | None, str | None]:
         """解析 "deepseek/deepseek-chat" 格式的模型 key。
 
         Returns:
@@ -294,7 +292,9 @@ class ConfigManager:
             dest = Path(filepath)
             dest.parent.mkdir(parents=True, exist_ok=True)
             with open(dest, "w", encoding="utf-8") as f:
-                yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False, indent=2)
+                yaml.dump(
+                    data, f, default_flow_style=False, allow_unicode=True, sort_keys=False, indent=2
+                )
             logger.info("workspace exported to %s", dest)
             return True
         except OSError as exc:
@@ -329,7 +329,7 @@ class ConfigManager:
             return 0, []
 
         try:
-            with open(src, "r", encoding="utf-8") as f:
+            with open(src, encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
         except (OSError, yaml.YAMLError) as exc:
             logger.error("failed to read template: %s", exc)
@@ -354,7 +354,9 @@ class ConfigManager:
         return len(imported_keys), imported_keys
 
     @classmethod
-    def list_template_dir(cls, templates_dir: str | Path = "docs/templates") -> list[dict[str, str]]:
+    def list_template_dir(
+        cls, templates_dir: str | Path = "docs/templates"
+    ) -> list[dict[str, str]]:
         """扫描模板目录，列出所有可用模板的元信息。
 
         Args:
@@ -370,18 +372,20 @@ class ConfigManager:
         templates: list[dict[str, str]] = []
         for yaml_file in sorted(td.glob("*.yaml")):
             try:
-                with open(yaml_file, "r", encoding="utf-8") as f:
+                with open(yaml_file, encoding="utf-8") as f:
                     data = yaml.safe_load(f) or {}
 
                 tmpl = data.get("template", {})
                 ws_count = len(data.get("workspaces", {}))
 
-                templates.append({
-                    "name": tmpl.get("name", yaml_file.stem),
-                    "description": tmpl.get("description", ""),
-                    "filepath": str(yaml_file),
-                    "workspace_count": str(ws_count),
-                })
+                templates.append(
+                    {
+                        "name": tmpl.get("name", yaml_file.stem),
+                        "description": tmpl.get("description", ""),
+                        "filepath": str(yaml_file),
+                        "workspace_count": str(ws_count),
+                    }
+                )
             except (OSError, yaml.YAMLError):
                 continue
 

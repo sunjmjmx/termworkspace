@@ -14,10 +14,11 @@ from pathlib import Path
 _src = Path(__file__).resolve().parent.parent / "src"
 sys.path.insert(0, str(_src))
 
-import yaml
-
 # Import directly from the module file — bypass __init__.py
 import importlib.util
+
+import yaml
+
 _spec = importlib.util.spec_from_file_location(
     "config_module", _src / "termworkspace" / "config.py"
 )
@@ -94,6 +95,7 @@ def test_export_all_workspaces():
         assert data["workspaces"]["demo"]["name"] == "演示工作区"
     finally:
         import shutil
+
         shutil.rmtree(tmpdir)
 
 
@@ -111,6 +113,7 @@ def test_export_single_workspace():
         assert "demo" in data["workspaces"]
     finally:
         import shutil
+
         shutil.rmtree(tmpdir)
 
 
@@ -123,6 +126,7 @@ def test_export_nonexistent_workspace():
         assert not export_path.is_file()
     finally:
         import shutil
+
         shutil.rmtree(tmpdir)
 
 
@@ -137,6 +141,7 @@ def test_export_no_workspaces():
         assert not export_path.is_file()
     finally:
         import shutil
+
         shutil.rmtree(tmpdir)
 
 
@@ -154,8 +159,13 @@ def test_import_template():
                     "description": "导入测试",
                     "default_pane": "p1",
                     "panes": [
-                        {"id": "p1", "name": "测试窗口", "provider": "openai",
-                         "model": "gpt-4o", "system_prompt": "test"},
+                        {
+                            "id": "p1",
+                            "name": "测试窗口",
+                            "provider": "openai",
+                            "model": "gpt-4o",
+                            "system_prompt": "test",
+                        },
                     ],
                 },
             },
@@ -174,6 +184,7 @@ def test_import_template():
             os.unlink(tmpl_path)
     finally:
         import shutil
+
         shutil.rmtree(tmpdir)
 
 
@@ -183,8 +194,12 @@ def test_import_overwrite():
         template_data = {
             "template": {"name": "Test"},
             "workspaces": {
-                "test_ws": {"name": "Original", "description": "orig",
-                            "default_pane": "x", "panes": []},
+                "test_ws": {
+                    "name": "Original",
+                    "description": "orig",
+                    "default_pane": "x",
+                    "panes": [],
+                },
             },
         }
         tmpl_path = create_template_file(template_data)
@@ -206,6 +221,7 @@ def test_import_overwrite():
             os.unlink(tmpl_path)
     finally:
         import shutil
+
         shutil.rmtree(tmpdir)
 
 
@@ -250,6 +266,7 @@ def test_import_multiple_workspaces():
             os.unlink(tmpl_path)
     finally:
         import shutil
+
         shutil.rmtree(tmpdir)
 
 
@@ -262,10 +279,11 @@ def test_list_templates():
         templates_dir = Path(tmpdir) / "templates"
         templates_dir.mkdir()
 
-        t1 = {"template": {"name": "模板A", "description": "描述A"},
-              "workspaces": {"a": {}}}
-        t2 = {"template": {"name": "模板B", "description": "描述B"},
-              "workspaces": {"b": {}, "c": {}}}
+        t1 = {"template": {"name": "模板A", "description": "描述A"}, "workspaces": {"a": {}}}
+        t2 = {
+            "template": {"name": "模板B", "description": "描述B"},
+            "workspaces": {"b": {}, "c": {}},
+        }
 
         with open(templates_dir / "t1.yaml", "w", encoding="utf-8") as f:
             yaml.dump(t1, f, allow_unicode=True)
@@ -283,6 +301,7 @@ def test_list_templates():
         assert t2_entry["workspace_count"] == "2"
     finally:
         import shutil
+
         shutil.rmtree(tmpdir)
 
 
@@ -305,6 +324,7 @@ def test_list_templates_skips_invalid_yaml():
         assert templates[0]["name"] == "Good"
     finally:
         import shutil
+
         shutil.rmtree(tmpdir)
 
 
@@ -327,6 +347,7 @@ def test_list_templates_fallback_name():
         assert templates[0]["name"] == "my-template"
     finally:
         import shutil
+
         shutil.rmtree(tmpdir)
 
 
@@ -355,4 +376,5 @@ def test_export_then_import_roundtrip():
         assert config["workspaces"]["demo"]["name"] == "演示工作区"
     finally:
         import shutil
+
         shutil.rmtree(tmpdir)

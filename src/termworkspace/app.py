@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """TermWorkspace — A terminal-based AI workspace with split-panel conversations.
 
 Entry point (after pip install)::
@@ -14,31 +13,29 @@ Keyboard shortcuts:
 """
 
 from __future__ import annotations
+
 import asyncio
 import logging
 import os
-import sys
 from pathlib import Path
-
-import yaml
 
 logger = logging.getLogger(__name__)
 
+import aiohttp
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.screen import ModalScreen
-from textual.widgets import Button, Footer, Header, Input, Label, Static, TabbedContent, TabPane
+from textual.widgets import Button, Header, Input, Label, Static, TabbedContent, TabPane
 
-from .window import AIWindowPanel
-from .workspace import WorkspaceView, WorkspaceManager, global_config
+from .config import ConfigManager
 from .providers import ProviderManager as RealProviderManager
 from .providers import send_message
-from .config import ConfigManager
 from .storage import StorageManager
-
+from .window import AIWindowPanel
+from .workspace import WorkspaceManager, WorkspaceView, global_config
 
 # ── File Path Prompt Screen ──────────────────────────────────────────────────
 
@@ -452,8 +449,11 @@ class TermWorkspaceApp(App):
         global_config.providers.clear()
         for provider_name, model_name in models:
             from .workspace import ProviderConfig as WSProvider
+
             global_config.providers.append(
-                WSProvider(name=provider_name, model=model_name, api_key="", base_url="", online=True)
+                WSProvider(
+                    name=provider_name, model=model_name, api_key="", base_url="", online=True
+                )
             )
         global_config.available_models  # trigger property refresh
 
@@ -462,7 +462,9 @@ class TermWorkspaceApp(App):
         if not configured:
             logger.warning("config found but no API keys configured — run with --init")
         else:
-            logger.info("loaded %d configured provider(s): %s", len(configured), list(configured.keys()))
+            logger.info(
+                "loaded %d configured provider(s): %s", len(configured), list(configured.keys())
+            )
 
     # ── Compose ───────────────────────────────────────────────────
 
@@ -562,10 +564,15 @@ class TermWorkspaceApp(App):
         """Init DB, restore session history, wire persistence callbacks.
 
         Runs once after mount so the UI renders before blocking on I/O.
+        Any errors are logged but don't crash the app.
         """
-        await StorageManager.init_db()
-        await self._restore_and_wire_all_panels()
-        self._focus_active_panel_input()
+        try:
+            await StorageManager.init_db()
+            await self._restore_and_wire_all_panels()
+            self._focus_active_panel_input()
+            logger.info("session persistence initialized successfully")
+        except Exception as exc:
+            logger.error("session persistence init failed (non-fatal): %s", exc)
 
     async def _restore_and_wire_all_panels(self) -> None:
         """Load history from DB into every panel and wire save/clear callbacks."""
@@ -575,9 +582,7 @@ class TermWorkspaceApp(App):
 
     async def _restore_one_panel(self, panel: AIWindowPanel) -> None:
         """Load conversation history from DB into a single panel."""
-        msgs = await StorageManager.get_history(
-            panel.ws_name, panel.tab_name, panel._uid
-        )
+        msgs = await StorageManager.get_history(panel.ws_name, panel.tab_name, panel._uid)
         if msgs:
             panel.load_messages(msgs)
 
@@ -589,15 +594,11 @@ class TermWorkspaceApp(App):
 
         def on_save(role: str, content: str, model: str) -> None:
             asyncio.create_task(
-                StorageManager.save_message(
-                    ws_name, tab_name, window_id, role, content, model
-                )
+                StorageManager.save_message(ws_name, tab_name, window_id, role, content, model)
             )
 
         def on_clear() -> None:
-            asyncio.create_task(
-                StorageManager.clear_history(ws_name, tab_name, window_id)
-            )
+            asyncio.create_task(StorageManager.clear_history(ws_name, tab_name, window_id))
 
         panel.set_storage_callbacks(on_save=on_save, on_clear=on_clear)
 
@@ -680,7 +681,9 @@ class TermWorkspaceApp(App):
 
         # Look in project's docs/templates/ for suggestions
         project_templates = Path(__file__).resolve().parent.parent.parent / "docs" / "templates"
-        default_path = str(project_templates / "general-writing.yaml") if project_templates.is_dir() else ""
+        default_path = (
+            str(project_templates / "general-writing.yaml") if project_templates.is_dir() else ""
+        )
 
         self.push_screen(
             FilePromptScreen(
@@ -700,11 +703,9 @@ class TermWorkspaceApp(App):
 
     # ── Event handlers ────────────────────────────────────────────
 
-    def on_ai_window_panel_send_requested(
-        self, message: AIWindowPanel.SendRequested
-    ) -> None:
+    def on_ai_window_panel_send_requested(self, message: AIWindowPanel.SendRequested) -> None:
         """Handle a send request from any AIWindowPanel.
-        
+
         Routes the message to the appropriate LLM provider via the
         providers module.
         """
@@ -718,7 +719,7 @@ class TermWorkspaceApp(App):
 
         # Get model and system prompt from config
         system_prompt = "You are a helpful AI assistant. Respond concisely and accurately."
-        
+
         async def do_send():
             panel.status = "thinking"
             try:
@@ -729,7 +730,7 @@ class TermWorkspaceApp(App):
                     provider_manager=self._provider_mgr,
                     stream=True,
                 )
-                async for chunk in generator:
+                async for chunk in generator:  # type: ignore[union-attr]
                     if chunk.get("done"):
                         panel.stream_end()
                     elif chunk.get("error"):
@@ -746,7 +747,7 @@ class TermWorkspaceApp(App):
                 # 网络连接失败
                 logger.error("send_message network error: %s", e)
                 panel.stream_error(f"网络连接失败: {e}")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.error("send_message timeout")
                 panel.stream_error("请求超时，请检查网络连接")
             except Exception as e:
@@ -758,9 +759,7 @@ class TermWorkspaceApp(App):
 
         asyncio.create_task(do_send())
 
-    def on_ai_window_panel_model_changed(
-        self, message: AIWindowPanel.ModelChanged
-    ) -> None:
+    def on_ai_window_panel_model_changed(self, message: AIWindowPanel.ModelChanged) -> None:
         """Handle model selection changes."""
         panel_name = message.panel.id or "unknown"
         self.notify(
@@ -773,11 +772,11 @@ class TermWorkspaceApp(App):
         self, message: AIWindowPanel.ConversationCleared
     ) -> None:
         """Handle a clear-conversation request from any panel.
-        
+
         Clears persisted messages from storage as well.
         """
         panel = message.panel
-        asyncio.create_task(self._clear_storage(panel))
+        panel.clear_conversation()
 
     def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
         """Focus the input when switching tabs."""
@@ -814,7 +813,8 @@ def main() -> None:
         help="show version and exit",
     )
     parser.add_argument(
-        "-c", "--config",
+        "-c",
+        "--config",
         metavar="PATH",
         help="path to config YAML (default: ~/.termworkspace/config.yaml)",
     )
@@ -834,6 +834,7 @@ def main() -> None:
 
     if args.init:
         from .config import ConfigManager
+
         config = ConfigManager.init_wizard()
         if config:
             print("Configuration complete. Run 'termworkspace' to start.")
@@ -844,6 +845,7 @@ def main() -> None:
 
     # 自动启动配置向导（如果没有配置文件）
     from .config import ConfigManager as _CM
+
     if not _CM.exists():
         print()
         print("~" * 50)

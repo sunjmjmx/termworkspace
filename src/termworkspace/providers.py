@@ -8,11 +8,10 @@ send_message: 统一异步发送消息（OpenAI 兼容 API / Anthropic 单独处
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
-from typing import AsyncGenerator, Optional
 
 import aiohttp
 
@@ -41,7 +40,7 @@ class ProviderConfig:
 class ProviderManager:
     """从 config 字典加载所有 provider，提供查询、测试、API key 检索功能。"""
 
-    def __init__(self, providers_config: Optional[dict] = None):
+    def __init__(self, providers_config: dict | None = None):
         """
         Args:
             providers_config: 形如 {'deepseek': {'api_key': 'sk-...', 'base_url': '...', 'models': [...]}}
@@ -63,7 +62,7 @@ class ProviderManager:
                 models=cfg.get("models", []),
             )
 
-    def get_provider(self, name: str) -> Optional[ProviderConfig]:
+    def get_provider(self, name: str) -> ProviderConfig | None:
         """按名称获取 provider。"""
         return self._providers.get(name)
 
@@ -108,7 +107,7 @@ class ProviderManager:
                             body[:200],
                         )
                         return False
-        except (asyncio.TimeoutError, aiohttp.ClientError) as exc:
+        except (TimeoutError, aiohttp.ClientError) as exc:
             logger.error("test_connection: %s connection failed — %s", provider_name, exc)
             return False
 
@@ -124,7 +123,7 @@ class ProviderManager:
 
     # ── 根据模型名查找 API key ─────────────────
 
-    def get_api_key(self, model_name: str) -> Optional[str]:
+    def get_api_key(self, model_name: str) -> str | None:
         """根据模型名（纯名称或 provider/model 格式）查找 API key。"""
         # 如果传入了 provider/model 格式，先按 provider 查
         if "/" in model_name:
@@ -140,7 +139,7 @@ class ProviderManager:
                 return provider.api_key
         return None
 
-    def get_base_url(self, model_name: str) -> Optional[str]:
+    def get_base_url(self, model_name: str) -> str | None:
         """根据模型名获取 base_url。"""
         if "/" in model_name:
             pname, _ = model_name.split("/", 1)
@@ -163,7 +162,7 @@ class ProviderManager:
 
     # ── 内部 helpers ───────────────────────────
 
-    def _get_provider_by_model(self, model_name: str) -> Optional[ProviderConfig]:
+    def _get_provider_by_model(self, model_name: str) -> ProviderConfig | None:
         for provider in self._providers.values():
             if model_name in provider.models:
                 return provider
@@ -193,9 +192,9 @@ _ANTHROPIC_ROLE_MAP = {
 }
 
 
-def _to_anthropic_messages(messages: list[dict], system_prompt: Optional[str] = None) -> dict:
+def _to_anthropic_messages(messages: list[dict], system_prompt: str | None = None) -> dict:
     """将 OpenAI 格式消息转为 Anthropic Messages API 格式。"""
-    system_content: Optional[str] = system_prompt
+    system_content: str | None = system_prompt
     anthro_messages: list[dict] = []
 
     for msg in messages:
@@ -204,7 +203,9 @@ def _to_anthropic_messages(messages: list[dict], system_prompt: Optional[str] = 
         if role == "system":
             system_content = content  # Anthropic 用顶层 system 参数
         else:
-            anthro_messages.append({"role": _ANTHROPIC_ROLE_MAP.get(role, "user"), "content": content})
+            anthro_messages.append(
+                {"role": _ANTHROPIC_ROLE_MAP.get(role, "user"), "content": content}
+            )
 
     payload: dict[str, object] = {
         "model": "",  # 由调用者填充
@@ -220,7 +221,7 @@ def _to_anthropic_messages(messages: list[dict], system_prompt: Optional[str] = 
 def _to_openai_payload(
     model: str,
     messages: list[dict],
-    system_prompt: Optional[str] = None,
+    system_prompt: str | None = None,
     stream: bool = False,
 ) -> dict:
     """构建 OpenAI 兼容 API 的请求体。"""
@@ -246,11 +247,11 @@ def _to_openai_payload(
 async def send_message(
     model_name: str,
     messages: list[dict],
-    system_prompt: Optional[str] = None,
+    system_prompt: str | None = None,
     stream: bool = False,
-    provider_manager: Optional[ProviderManager] = None,
-    api_key: Optional[str] = None,
-    base_url: Optional[str] = None,
+    provider_manager: ProviderManager | None = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
 ) -> dict | AsyncGenerator[dict, None]:
     """统一发送消息到模型 API。
 
@@ -344,7 +345,7 @@ async def _send_sync_openai(endpoint: str, headers: dict, payload: dict) -> dict
                     return _normalize_openai_response(body)
                 else:
                     return _build_error_response(resp.status, body)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return _build_error_response(408, {"error": {"message": "请求超时，请检查网络连接"}})
     except aiohttp.ClientError as exc:
         return _build_error_response(0, {"error": {"message": f"网络错误: {exc}"}})
@@ -392,7 +393,7 @@ async def _send_stream_openai(
                         delta = chunk.get("choices", [{}])[0].get("delta", {})
                         content = delta.get("content", "")
                         yield {"content": content, "done": False}
-    except asyncio.TimeoutError:
+    except TimeoutError:
         yield _build_error_response(408, {"error": {"message": "流式请求超时"}})
     except aiohttp.ClientError as exc:
         yield _build_error_response(0, {"error": {"message": f"流式网络错误: {exc}"}})
@@ -406,7 +407,7 @@ async def _send_stream_openai(
 async def _send_anthropic(
     model: str,
     messages: list[dict],
-    system_prompt: Optional[str] = None,
+    system_prompt: str | None = None,
     api_key: str = "",
     base_url: str = "https://api.anthropic.com/v1",
     stream: bool = False,
@@ -444,7 +445,7 @@ async def _send_sync_anthropic(endpoint: str, headers: dict, payload: dict) -> d
                     return _normalize_anthropic_response(body)
                 else:
                     return _build_error_response(resp.status, body)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return _build_error_response(408, {"error": {"message": "Anthropic 请求超时"}})
     except aiohttp.ClientError as exc:
         return _build_error_response(0, {"error": {"message": f"Anthropic 网络错误: {exc}"}})
@@ -488,7 +489,7 @@ async def _send_stream_anthropic(
                         elif chunk.get("type") == "message_stop":
                             yield {"content": "", "done": True}
                             return
-    except asyncio.TimeoutError:
+    except TimeoutError:
         yield _build_error_response(408, {"error": {"message": "Anthropic 流式请求超时"}})
     except aiohttp.ClientError as exc:
         yield _build_error_response(0, {"error": {"message": f"Anthropic 流式网络错误: {exc}"}})
@@ -516,7 +517,9 @@ def _normalize_openai_response(body: dict) -> dict:
 def _normalize_anthropic_response(body: dict) -> dict:
     """将 Anthropic API 的响应标准化为统一格式。"""
     content_blocks = body.get("content", [])
-    full_text = "".join(block.get("text", "") for block in content_blocks if block.get("type") == "text")
+    full_text = "".join(
+        block.get("text", "") for block in content_blocks if block.get("type") == "text"
+    )
     return {
         "role": "assistant",
         "content": full_text,

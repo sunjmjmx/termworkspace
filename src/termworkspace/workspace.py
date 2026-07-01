@@ -9,10 +9,8 @@ Provides:
 
 from __future__ import annotations
 
-import copy
 import logging
-import os
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -20,11 +18,11 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-from textual.containers import Grid, Horizontal, Vertical
+from textual.containers import Grid
+from textual.css.query import NoMatches
 from textual.widget import Widget
 
 from .window import AIWindowPanel
-
 
 # ── Data classes ──────────────────────────────────────────────────────────────
 
@@ -69,9 +67,7 @@ class AppConfig:
     @property
     def available_models(self) -> list[str]:
         """Return a list of model names from all configured providers."""
-        return [
-            f"{p.name}/{p.model}" if p.model else p.name for p in self.providers
-        ]
+        return [f"{p.name}/{p.model}" if p.model else p.name for p in self.providers]
 
     @property
     def online_model_count(self) -> int:
@@ -97,12 +93,15 @@ class WorkspaceManager:
     """Singleton manager for workspace CRUD operations."""
 
     _instance: WorkspaceManager | None = None
+    _workspaces: dict[str, WorkspaceConfig]
+    _counter: int
 
     def __new__(cls) -> WorkspaceManager:
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._workspaces: dict[str, WorkspaceConfig] = {}
-            cls._instance._counter = 0
+            instance = super().__new__(cls)
+            instance._workspaces = {}
+            instance._counter = 0
+            cls._instance = instance
         return cls._instance
 
     # ── Create ──
@@ -115,8 +114,7 @@ class WorkspaceManager:
         # Create default windows for the layout
         window_count = {"single": 1, "horizontal": 2, "vertical": 2, "grid": 4}
         windows = [
-            WindowConfig(panel_id=f"{ws_id}-panel-{i}")
-            for i in range(window_count.get(layout, 1))
+            WindowConfig(panel_id=f"{ws_id}-panel-{i}") for i in range(window_count.get(layout, 1))
         ]
         config = WorkspaceConfig(name=name, layout=layout, windows=windows)
         self._workspaces[ws_id] = config
@@ -229,7 +227,7 @@ class WorkspaceManager:
         if not path.is_file():
             raise FileNotFoundError(f"Workspace template not found: {path}")
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         if not isinstance(data, dict):
@@ -325,7 +323,12 @@ class WorkspaceView(Widget):
         super().__init__(**kwargs)
         self._ws_id = ws_id
         self._layout = layout
-        self._panel_count = panel_count or {"single": 1, "horizontal": 2, "vertical": 2, "grid": 4}.get(layout, 1)
+        self._panel_count = panel_count or {
+            "single": 1,
+            "horizontal": 2,
+            "vertical": 2,
+            "grid": 4,
+        }.get(layout, 1)
         self._panels: list[AIWindowPanel] = []
         self._available_models: list[str] = global_config.available_models
         self._workspace_name = workspace_name
@@ -334,11 +337,11 @@ class WorkspaceView(Widget):
     # ── Properties ──
 
     @property
-    def layout(self) -> str:
+    def layout_mode(self) -> str:
         return self._layout
 
-    @layout.setter
-    def layout(self, value: str) -> None:
+    @layout_mode.setter
+    def layout_mode(self, value: str) -> None:
         if value != self._layout and value in ("single", "horizontal", "vertical", "grid"):
             self._layout = value
             self._rebuild_layout()
@@ -353,9 +356,7 @@ class WorkspaceView(Widget):
         self._panels.clear()
         grid = Grid(id=f"{self._ws_id}-grid")
 
-        target_count = {"single": 1, "horizontal": 2, "vertical": 2, "grid": 4}.get(
-            self._layout, 1
-        )
+        target_count = {"single": 1, "horizontal": 2, "vertical": 2, "grid": 4}.get(self._layout, 1)
         for i in range(target_count):
             panel = AIWindowPanel(
                 available_models=self._available_models,
@@ -376,7 +377,10 @@ class WorkspaceView(Widget):
 
     def _apply_grid_layout(self) -> None:
         """Dynamically set the grid template based on layout mode."""
-        grid = self.query_one(f"#{self._ws_id}-grid", Grid)
+        try:
+            grid = self.query_one(f"#{self._ws_id}-grid", Grid)
+        except NoMatches:
+            return  # not mounted yet
         if self._layout == "single":
             grid.styles.grid_size_columns = 1
             grid.styles.grid_size_rows = 1
@@ -396,9 +400,7 @@ class WorkspaceView(Widget):
         grid = self.query_one(f"#{self._ws_id}-grid", Grid)
         grid.remove_children()
 
-        target_count = {"single": 1, "horizontal": 2, "vertical": 2, "grid": 4}.get(
-            self._layout, 1
-        )
+        target_count = {"single": 1, "horizontal": 2, "vertical": 2, "grid": 4}.get(self._layout, 1)
 
         # Reuse existing panels if possible, else create new ones
         old_panels = list(self._panels)
@@ -424,7 +426,7 @@ class WorkspaceView(Widget):
 
     def set_layout(self, layout: str) -> None:
         """Change the split layout mode."""
-        self.layout = layout
+        self.layout_mode = layout
 
     def split_horizontal(self) -> None:
         """Split the workspace into left/right panels."""

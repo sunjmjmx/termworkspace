@@ -16,8 +16,8 @@ class Termworkspace < Formula
   include Language::Python::Virtualenv
 
   desc "Terminal-native multi-model AI workspace — bring your own API keys"
-  homepage "https://github.com/termworkspace/termworkspace"
-  url "https://github.com/termworkspace/termworkspace/archive/refs/tags/v0.1.0.tar.gz"
+  homepage "https://github.com/sunjmjmx/termworkspace"
+  url "https://github.com/sunjmjmx/termworkspace/archive/refs/tags/v0.1.0.tar.gz"
   version "0.1.0"
   sha256 "" # Fill on first release: shasum -a 256 v0.1.0.tar.gz
   license "MIT"

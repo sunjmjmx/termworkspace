@@ -6,7 +6,7 @@ no platform lock-in.
 
 __version__ = "0.1.0"
 
-from .app import main, TermWorkspaceApp
+from .app import TermWorkspaceApp, main
 from .config import ConfigManager
 from .providers import ProviderManager, send_message
 from .workspace import WorkspaceManager, WorkspaceView, global_config

@@ -7,7 +7,7 @@ set -e
 # 兼容 macOS 12+ (Monterey, Ventura, Sonoma, Sequoia) 和 Linux
 #
 # 用法:
-#   curl -fsSL https://raw.githubusercontent.com/termworkspace/termworkspace/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/sunjmjmx/termworkspace/main/install.sh | bash
 #   # 或本地运行:
 #   bash install.sh [--venv DIR] [--no-launch]
 #
@@ -48,7 +48,7 @@ cleanup() {
   if [ $? -ne 0 ]; then
     echo
     error "安装过程中出现错误，请检查上面的输出信息。"
-    error "如有问题，请前往 https://github.com/termworkspace/termworkspace/issues 反馈。"
+    error "如有问题，请前往 https://github.com/sunjmjmx/termworkspace/issues 反馈。"
   fi
 }
 trap cleanup EXIT

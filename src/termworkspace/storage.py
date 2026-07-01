@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +24,8 @@ try:
     HAS_AIOSQLITE = True
 except ImportError:
     HAS_AIOSQLITE = False
-    import sqlite3
     import asyncio
+    import sqlite3
     from concurrent.futures import ThreadPoolExecutor
 
     _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="sqlite_worker")
@@ -241,7 +241,7 @@ class StorageManager:
         logger.info("workspace config saved: %s", name)
 
     @classmethod
-    async def get_workspace_config(cls, name: str) -> Optional[dict[str, Any]]:
+    async def get_workspace_config(cls, name: str) -> dict[str, Any] | None:
         """获取单个 workspace 配置。"""
         cls.ensure_dir()
 
@@ -364,9 +364,9 @@ class StorageManager:
 class _AiosqliteConnection:
     """aiosqlite 异步连接包装。"""
 
-    def __init__(self, db_path: Path):
+    def __init__(self, db_path: Path) -> None:
         self._db_path = str(db_path)
-        self._conn = None
+        self._conn: aiosqlite.Connection | None = None
 
     async def __aenter__(self):
         self._conn = await aiosqlite.connect(self._db_path)
@@ -385,8 +385,8 @@ class _AiosqliteConnection:
         self._conn_proxy = self._conn
 
     async def execute(self, sql, params=(), fetch=False, fetch_scalar=False, rowcount=False):
-        cursor = await self._conn.execute(sql, params)
-        result = None
+        cursor = await self._conn.execute(sql, params)  # type: ignore[union-attr]
+        result: Any = None
         if fetch:
             rows = await cursor.fetchall()
             result = [tuple(r) for r in rows]
@@ -401,7 +401,7 @@ class _AiosqliteConnection:
         return result
 
     async def commit(self):
-        await self._conn.commit()
+        await self._conn.commit()  # type: ignore[union-attr]
 
 
 class _SyncSqliteConnection:
@@ -414,7 +414,7 @@ class _SyncSqliteConnection:
         self._db_path = str(db_path)
         self._conn = None
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> _SyncConnectionProxy:  # type: ignore[return-value]
         loop = asyncio.get_event_loop()
         self._conn = await loop.run_in_executor(_executor, self._connect_sync)
         return _SyncConnectionProxy(self._conn, loop, _executor)

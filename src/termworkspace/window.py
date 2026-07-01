@@ -7,14 +7,13 @@ import logging
 from textual.binding import Binding
 
 logger = logging.getLogger(__name__)
+from collections.abc import Callable
+
 from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Button, Label, Select, TextArea
-
-
-from typing import Any, Callable, Optional
 
 
 class AIWindowPanel(Widget):
@@ -138,8 +137,8 @@ class AIWindowPanel(Widget):
     ) -> None:
         super().__init__(**kwargs)
         self._panel_index = panel_index
-        self.ws_name = workspace_name
-        self.tab_name = tab_name
+        self._workspace_name = workspace_name
+        self._tab_name = tab_name
         self.model_name = model_name
         self._available_models = available_models or [
             "gpt-4",
@@ -187,7 +186,9 @@ class AIWindowPanel(Widget):
                     id=f"{self._uid}-status",
                     classes="model-status-label online",
                 )
-                yield Button("✕ Clear", id=f"{self._uid}-clear", variant="error", classes="clear-btn")
+                yield Button(
+                    "✕ Clear", id=f"{self._uid}-clear", variant="error", classes="clear-btn"
+                )
 
             # ── Conversation history (read-only) ──
             yield TextArea(
@@ -243,9 +244,9 @@ class AIWindowPanel(Widget):
         """Handle model selection changes."""
         if event.select.id == f"{self._uid}-model-select" and event.value:
             old_name = self.model_name
-            self.model_name = event.value
-            if old_name != event.value:
-                self.post_message(self.ModelChanged(self, event.value))
+            self.model_name = str(event.value)
+            if old_name != str(event.value):
+                self.post_message(self.ModelChanged(self, str(event.value)))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button clicks."""
