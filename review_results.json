@@ -1,21 +1,13 @@
 {
-  "timestamp": "2026-07-01T14:17:35.517129",
+  "timestamp": "2026-07-01T15:34:09.638335",
   "input_dir": "/Users/sunjmj/20260701_termworkspace",
-  "total_files": 11,
-  "files_analyzed": 11,
+  "total_files": 15,
+  "files_analyzed": 15,
   "issues": {
     "critical": [
       {
         "type": "安全性",
-        "line": 151,
-        "severity": "严重",
-        "description": "检测到硬编码的敏感信息",
-        "suggestion": "使用环境变量或配置文件存储敏感信息",
-        "file": "src/termworkspace/config.py"
-      },
-      {
-        "type": "安全性",
-        "line": 61,
+        "line": 60,
         "severity": "严重",
         "description": "检测到硬编码的敏感信息",
         "suggestion": "使用环境变量或配置文件存储敏感信息",
@@ -23,7 +15,7 @@
       },
       {
         "type": "安全性",
-        "line": 275,
+        "line": 276,
         "severity": "严重",
         "description": "检测到硬编码的敏感信息",
         "suggestion": "使用环境变量或配置文件存储敏感信息",
@@ -31,7 +23,7 @@
       },
       {
         "type": "安全性",
-        "line": 285,
+        "line": 286,
         "severity": "严重",
         "description": "检测到硬编码的敏感信息",
         "suggestion": "使用环境变量或配置文件存储敏感信息",
@@ -39,7 +31,7 @@
       },
       {
         "type": "安全性",
-        "line": 290,
+        "line": 291,
         "severity": "严重",
         "description": "检测到硬编码的敏感信息",
         "suggestion": "使用环境变量或配置文件存储敏感信息",
@@ -47,7 +39,7 @@
       },
       {
         "type": "安全性",
-        "line": 308,
+        "line": 309,
         "severity": "严重",
         "description": "检测到硬编码的敏感信息",
         "suggestion": "使用环境变量或配置文件存储敏感信息",
@@ -55,7 +47,7 @@
       },
       {
         "type": "安全性",
-        "line": 713,
+        "line": 752,
         "severity": "严重",
         "description": "检测到硬编码的敏感信息",
         "suggestion": "使用环境变量或配置文件存储敏感信息",
@@ -123,7 +115,7 @@
       },
       {
         "type": "代码可读性",
-        "line": 123,
+        "line": 121,
         "severity": "优化",
         "description": "函数 init_wizard 过长（61行）",
         "suggestion": "建议将函数拆分为更小的子函数",
@@ -131,23 +123,23 @@
       },
       {
         "type": "代码可读性",
-        "line": 790,
+        "line": 868,
         "severity": "优化",
-        "description": "函数 main 过长（67行）",
+        "description": "函数 main 过长（70行）",
         "suggestion": "建议将函数拆分为更小的子函数",
         "file": "src/termworkspace/app.py"
       },
       {
         "type": "代码可读性",
-        "line": 703,
+        "line": 744,
         "severity": "优化",
-        "description": "函数 on_ai_window_panel_send_requested 过长（56行）",
+        "description": "函数 on_ai_window_panel_send_requested 过长（54行）",
         "suggestion": "建议将函数拆分为更小的子函数",
         "file": "src/termworkspace/app.py"
       },
       {
         "type": "代码可读性",
-        "line": 209,
+        "line": 207,
         "severity": "优化",
         "description": "函数 import_from_yaml 过长（77行）",
         "suggestion": "建议将函数拆分为更小的子函数",
@@ -208,9 +200,41 @@
     "tests/test_config_templates.py": {
       "path": "tests/test_config_templates.py",
       "language": "python",
-      "size_bytes": 12315,
-      "lines": 359,
+      "size_bytes": 12547,
+      "lines": 381,
       "comment_lines": 15,
+      "issues": []
+    },
+    "tests/conftest.py": {
+      "path": "tests/conftest.py",
+      "language": "python",
+      "size_bytes": 1609,
+      "lines": 61,
+      "comment_lines": 2,
+      "issues": []
+    },
+    "tests/test_storage.py": {
+      "path": "tests/test_storage.py",
+      "language": "python",
+      "size_bytes": 8324,
+      "lines": 266,
+      "comment_lines": 2,
+      "issues": []
+    },
+    "tests/test_forward.py": {
+      "path": "tests/test_forward.py",
+      "language": "python",
+      "size_bytes": 7803,
+      "lines": 225,
+      "comment_lines": 16,
+      "issues": []
+    },
+    "tests/test_edge_cases.py": {
+      "path": "tests/test_edge_cases.py",
+      "language": "python",
+      "size_bytes": 10457,
+      "lines": 328,
+      "comment_lines": 4,
       "issues": []
     },
     "docs/screenshots/template-market/demo_export_import.py": {
@@ -224,21 +248,13 @@
     "src/termworkspace/config.py": {
       "path": "src/termworkspace/config.py",
       "language": "python",
-      "size_bytes": 14248,
-      "lines": 401,
+      "size_bytes": 14304,
+      "lines": 405,
       "comment_lines": 20,
       "issues": [
         {
-          "type": "安全性",
-          "line": 151,
-          "severity": "严重",
-          "description": "检测到硬编码的敏感信息",
-          "suggestion": "使用环境变量或配置文件存储敏感信息",
-          "file": "src/termworkspace/config.py"
-        },
-        {
           "type": "代码可读性",
-          "line": 123,
+          "line": 121,
           "severity": "优化",
           "description": "函数 init_wizard 过长（61行）",
           "suggestion": "建议将函数拆分为更小的子函数",
@@ -249,9 +265,9 @@
     "src/termworkspace/window.py": {
       "path": "src/termworkspace/window.py",
       "language": "python",
-      "size_bytes": 14591,
-      "lines": 416,
-      "comment_lines": 21,
+      "size_bytes": 17872,
+      "lines": 496,
+      "comment_lines": 25,
       "issues": []
     },
     "src/termworkspace/__init__.py": {
@@ -274,13 +290,13 @@
     "src/termworkspace/providers.py": {
       "path": "src/termworkspace/providers.py",
       "language": "python",
-      "size_bytes": 22787,
-      "lines": 585,
+      "size_bytes": 22736,
+      "lines": 588,
       "comment_lines": 30,
       "issues": [
         {
           "type": "安全性",
-          "line": 61,
+          "line": 60,
           "severity": "严重",
           "description": "检测到硬编码的敏感信息",
           "suggestion": "使用环境变量或配置文件存储敏感信息",
@@ -288,7 +304,7 @@
         },
         {
           "type": "安全性",
-          "line": 275,
+          "line": 276,
           "severity": "严重",
           "description": "检测到硬编码的敏感信息",
           "suggestion": "使用环境变量或配置文件存储敏感信息",
@@ -296,7 +312,7 @@
         },
         {
           "type": "安全性",
-          "line": 285,
+          "line": 286,
           "severity": "严重",
           "description": "检测到硬编码的敏感信息",
           "suggestion": "使用环境变量或配置文件存储敏感信息",
@@ -304,7 +320,7 @@
         },
         {
           "type": "安全性",
-          "line": 290,
+          "line": 291,
           "severity": "严重",
           "description": "检测到硬编码的敏感信息",
           "suggestion": "使用环境变量或配置文件存储敏感信息",
@@ -312,7 +328,7 @@
         },
         {
           "type": "安全性",
-          "line": 308,
+          "line": 309,
           "severity": "严重",
           "description": "检测到硬编码的敏感信息",
           "suggestion": "使用环境变量或配置文件存储敏感信息",
@@ -323,7 +339,7 @@
     "src/termworkspace/storage.py": {
       "path": "src/termworkspace/storage.py",
       "language": "python",
-      "size_bytes": 15309,
+      "size_bytes": 15448,
       "lines": 471,
       "comment_lines": 18,
       "issues": []
@@ -331,13 +347,13 @@
     "src/termworkspace/app.py": {
       "path": "src/termworkspace/app.py",
       "language": "python",
-      "size_bytes": 27493,
-      "lines": 862,
-      "comment_lines": 30,
+      "size_bytes": 30737,
+      "lines": 943,
+      "comment_lines": 36,
       "issues": [
         {
           "type": "安全性",
-          "line": 713,
+          "line": 752,
           "severity": "严重",
           "description": "检测到硬编码的敏感信息",
           "suggestion": "使用环境变量或配置文件存储敏感信息",
@@ -345,17 +361,17 @@
         },
         {
           "type": "代码可读性",
-          "line": 790,
+          "line": 868,
           "severity": "优化",
-          "description": "函数 main 过长（67行）",
+          "description": "函数 main 过长（70行）",
           "suggestion": "建议将函数拆分为更小的子函数",
           "file": "src/termworkspace/app.py"
         },
         {
           "type": "代码可读性",
-          "line": 703,
+          "line": 744,
           "severity": "优化",
-          "description": "函数 on_ai_window_panel_send_requested 过长（56行）",
+          "description": "函数 on_ai_window_panel_send_requested 过长（54行）",
           "suggestion": "建议将函数拆分为更小的子函数",
           "file": "src/termworkspace/app.py"
         }
@@ -364,13 +380,13 @@
     "src/termworkspace/workspace.py": {
       "path": "src/termworkspace/workspace.py",
       "language": "python",
-      "size_bytes": 15050,
-      "lines": 450,
+      "size_bytes": 15178,
+      "lines": 452,
       "comment_lines": 19,
       "issues": [
         {
           "type": "代码可读性",
-          "line": 209,
+          "line": 207,
           "severity": "优化",
           "description": "函数 import_from_yaml 过长（77行）",
           "suggestion": "建议将函数拆分为更小的子函数",
@@ -397,8 +413,8 @@
     }
   },
   "statistics": {
-    "total_lines": 4274,
-    "comment_lines": 188,
-    "comment_coverage": 4.4
+    "total_lines": 5346,
+    "comment_lines": 222,
+    "comment_coverage": 4.15
   }
 }

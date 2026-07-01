@@ -289,7 +289,7 @@ class AIWindowPanel(Widget):
 
     def action_send_message(self) -> None:
         """Send the current input as a user message (Ctrl+Enter)."""
-        input_area = self.query_one(f"{self._uid}-input", TextArea)
+        input_area = self.query_one(f"#{self._uid}-input", TextArea)
         message = input_area.text.strip()
         if not message:
             return
@@ -319,7 +319,7 @@ class AIWindowPanel(Widget):
         self.messages.clear()
         self._streaming = False
         self._streaming_content = ""
-        history = self.query_one(f"{self._uid}-history", TextArea)
+        history = self.query_one(f"#{self._uid}-history", TextArea)
         history.text = ""
         if self._clear_callback:
             self._clear_callback()
