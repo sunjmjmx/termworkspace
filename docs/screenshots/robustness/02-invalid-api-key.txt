@@ -1,0 +1,18 @@
+=== 场景：API Key 无效/缺失 ===
+
+触发方式：在 TUI 中发送消息时使用未配置 API key 的模型
+
+代码路径：app.py do_send() → providers.py send_message()
+错误处理链：
+  send_message() 检测到无 API key → 抛出 ValueError("无法找到模型 'xxx' 的 API key")
+  → app.py do_send() 的 except ValueError 捕获
+  → panel.stream_error("无法找到模型 'xxx' 的 API key")
+  → UI 显示中文错误提示，app 不崩溃
+
+测试命令：
+  send_message(model_name='nonexistent/fake-model', provider_manager=PM(...), ...)
+
+测试结果：
+  ✓ ValueError raised: 无法找到模型 'nonexistent/fake-model' 的 API key
+
+UI 表现：状态栏变为 idle，history 面板显示 system 错误消息，用户可继续操作

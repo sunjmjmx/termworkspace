@@ -1,0 +1,25 @@
+=== 场景：网络连接断开 ===
+
+触发方式：发送消息到不可达的 base URL（如 192.0.2.1 TEST-NET 地址）
+
+代码路径：app.py do_send() → providers.py _send_sync_openai()
+错误处理链：
+  aiohttp 连接失败 → aiohttp.ClientError 被 _send_sync_openai() 捕获
+  → 返回 _build_error_response(0, {"error": {"message": "网络错误: ..."}})
+  → do_send() 的 except aiohttp.ClientError 在 app.py 中捕获
+  → panel.stream_error("网络连接失败: <details>")
+  → UI 显示中文错误提示，app 不崩溃
+
+测试命令：
+  send_message(model_name='test-provider/test-model', 
+               base_url='https://192.0.2.1:9999/api')
+
+测试结果：aiohttp 抛出 ClientError → 友好中文错误提示 → app 继续运行
+
+相关代码（app.py do_send()）：
+  except aiohttp.ClientError as e:
+      logger.error("send_message network error: %s", e)
+      panel.stream_error(f"网络连接失败: {e}")
+  except asyncio.TimeoutError:
+      logger.error("send_message timeout")
+      panel.stream_error("请求超时，请检查网络连接")
