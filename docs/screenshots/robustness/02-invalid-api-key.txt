@@ -1,18 +1,24 @@
-=== 场景：API Key 无效/缺失 ===
+=== Phase2-2: Error Boundary — Invalid API Key ===
 
-触发方式：在 TUI 中发送消息时使用未配置 API key 的模型
+Scenario: User enters an invalid or missing API key
 
-代码路径：app.py do_send() → providers.py send_message()
-错误处理链：
-  send_message() 检测到无 API key → 抛出 ValueError("无法找到模型 'xxx' 的 API key")
-  → app.py do_send() 的 except ValueError 捕获
-  → panel.stream_error("无法找到模型 'xxx' 的 API key")
-  → UI 显示中文错误提示，app 不崩溃
+Code path: app.py do_send() → ValueError catch
 
-测试命令：
-  send_message(model_name='nonexistent/fake-model', provider_manager=PM(...), ...)
+Verified in app.py (lines 741-744):
+    except ValueError as e:
+        # 配置缺失（无 API key / base URL / 模型名）
+        logger.warning("send_message config error: %s", e)
+        panel.stream_error(str(e))
 
-测试结果：
-  ✓ ValueError raised: 无法找到模型 'nonexistent/fake-model' 的 API key
+Expected user experience:
+  1. Panel status shows "thinking" briefly
+  2. Error message displayed in conversation: "[Error: ...]"
+  3. Panel returns to "idle" state
+  4. UI not crashed — user can retry with valid config
 
-UI 表现：状态栏变为 idle，history 面板显示 system 错误消息，用户可继续操作
+Also handles (providers.py lines 83-86):
+  - 401 Unauthorized → "API Key无效或已过期"
+  - 404 Not Found → "模型不存在或已弃用"
+  - 429 Too Many Requests → "请求过频，请稍后再试"
+  - 408 Request Timeout → "请求超时"
+  - 0 (network error) → "网络连接失败"

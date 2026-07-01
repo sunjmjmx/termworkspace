@@ -58,12 +58,6 @@ def main() -> None:
 
         os.environ["TERMWORKSPACE_CONFIG"] = args.config
 
-    if args.init:
-        from termworkspace.config import ConfigManager
-
-        ConfigManager.init_wizard()
-        sys.exit(0)
-
     if args.verbose:
         import logging
 

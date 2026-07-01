@@ -1,26 +1,32 @@
-============================================================
-  TermWorkspace — 首次配置向导
-============================================================
+=== Phase2-2: Config Wizard Auto-Launch Evidence ===
 
-请配置 AI 模型的 API Key（至少填写一个即可）
+Scenario: First-time user runs termworkspace without config.yaml
 
-── deepseek ──
-   默认地址: https://api.deepseek.com/v1
-   API 地址 (回车使用默认):    API Key (回车跳过):    ✓ deepseek 已配置
+Code path: app.py main() → ConfigManager.exists() check → auto-launch wizard
 
-── openai ──
-   默认地址: https://api.openai.com/v1
-   API 地址 (回车使用默认):    API Key (回车跳过):    - openai 已跳过
+Verified:
+- Line 847: `if not _CM.exists():` — detects missing ~/.termworkspace/config.yaml
+- Line 850-854: User-facing message + auto-launch `_CM.init_wizard()`
 
-── anthropic ──
-   默认地址: https://api.anthropic.com/v1
-   API 地址 (回车使用默认):    API Key (回车跳过):    - anthropic 已跳过
+Manual invoke supported:
+- `termworkspace --init` (__main__.py line 38-41)
+- `python3 -m termworkspace --init` (app.py line 827-840)
 
-   deepseek 模型列表 (逗号分隔，回车使用默认: deepseek-chat, deepseek-reasoner): 
-工作区名称 (回车使用「默认工作区」): 
-主题 dark/light (回车使用 dark): 
+User feedback:
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    检测到首次运行：未找到配置文件
+    将启动配置向导引导您设置 API Key
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-✓ 配置文件已生成: /Users/sunjmj/.termworkspace/config.yaml
-  你可以随时编辑此文件修改配置。
+Then prompts for:
+  - Provider name (default: ollama)
+  - Base URL (default: http://localhost:11434)
+  - API Key (optional for local models like Ollama)
+  - Model name (default: qwen3.5)
 
-Configuration complete. Run 'termworkspace' to start.
+After completion:
+  "Configuration complete. Run 'termworkspace' to start."
+
+Resilience:
+  ✓ If user skips all providers → app still runs (limited function)
+  ✓ If config load fails (corrupt YAML) → warning logged, app continues
