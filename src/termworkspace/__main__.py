@@ -34,6 +34,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show version and exit",
     )
+    parser.add_argument(
+        "--init",
+        action="store_true",
+        help="Run the interactive configuration wizard to set up API keys",
+    )
     return parser
 
 
@@ -57,6 +62,12 @@ def main() -> None:
         import logging
 
         logging.basicConfig(level=logging.DEBUG)
+
+    if args.init:
+        from termworkspace.config import ConfigManager
+
+        ConfigManager.init_wizard()
+        sys.exit(0)
 
     # Defer heavy imports to keep --help snappy
     from termworkspace.app import main as app_main
