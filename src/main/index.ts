@@ -2,8 +2,8 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'path'
 import { spawn } from 'node-pty'
 import https from 'https'
-import { readFileSync, existsSync } from 'fs'
-import type { AiChatRequest } from '../types'
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs'
+import type { AiChatRequest, AppConfig } from '../types'
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
@@ -11,6 +11,29 @@ let mainWindow: BrowserWindow | null = null
 
 // PTY registry — maps terminal IDs to their pty processes
 const ptyRegistry = new Map<string, ReturnType<typeof spawn>>()
+
+// ── Config persistence ────────────────────────────────────
+
+const configDir = path.join(app.getPath('userData'), 'config')
+const configFile = path.join(configDir, 'app-config.json')
+
+function loadConfig(): AppConfig {
+  try {
+    if (existsSync(configFile)) {
+      const raw = readFileSync(configFile, 'utf-8')
+      const parsed = JSON.parse(raw) as Partial<AppConfig>
+      return { theme: parsed.theme ?? 'dark' }
+    }
+  } catch {
+    // ignore corrupt config, use defaults
+  }
+  return { theme: 'dark' }
+}
+
+function saveConfig(config: AppConfig): void {
+  mkdirSync(configDir, { recursive: true })
+  writeFileSync(configFile, JSON.stringify(config, null, 2), 'utf-8')
+}
 
 // ── AI Config ────────────────────────────────────────────
 
@@ -254,6 +277,17 @@ function setupIPC() {
 
     req.write(body)
     req.end()
+  })
+
+  // config:load — return current config
+  ipcMain.on('config:load', (event) => {
+    const config = loadConfig()
+    event.reply('config:loaded', config)
+  })
+
+  // config:save — persist and broadcast
+  ipcMain.on('config:save', (_event, config: AppConfig) => {
+    saveConfig(config)
   })
 }
 

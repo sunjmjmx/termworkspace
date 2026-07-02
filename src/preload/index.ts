@@ -3,11 +3,13 @@ import { contextBridge, ipcRenderer } from 'electron'
 const validSendChannels = [
   'terminal:create', 'terminal:resize', 'terminal:write', 'terminal:kill',
   'ai:chat',
+  'config:load', 'config:save',
 ]
 
 const validOnChannels = [
   'terminal:output', 'terminal:exit', 'terminal:error',
   'ai:chunk', 'ai:done',
+  'config:loaded',
 ]
 
 contextBridge.exposeInMainWorld('electronAPI', {

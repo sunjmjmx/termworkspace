@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { Cell } from './Cell'
-import type { SplitNode, SplitDirection } from '../../types'
+import type { SplitNode, SplitDirection, ThemeMode } from '../../types'
 
 // ── Helpers ────────────────────────────────────────────
 
@@ -43,6 +43,7 @@ export function replaceLeaf(node: SplitNode, targetId: string, direction: SplitD
 interface SplitPaneProps {
   tree: SplitNode
   onTreeChange: (tree: SplitNode) => void
+  theme: ThemeMode
 }
 
 /**
@@ -53,7 +54,7 @@ interface SplitPaneProps {
  *
  * Each leaf renders a <Cell> which can show Terminal or AI Chat.
  */
-export function SplitPane({ tree, onTreeChange }: SplitPaneProps) {
+export function SplitPane({ tree, onTreeChange, theme }: SplitPaneProps) {
   const handleSplit = useCallback(
     (targetId: string, direction: SplitDirection) => {
       onTreeChange(replaceLeaf(tree, targetId, direction))
@@ -61,7 +62,7 @@ export function SplitPane({ tree, onTreeChange }: SplitPaneProps) {
     [tree, onTreeChange],
   )
 
-  return <SplitPaneNode node={tree} onSplit={handleSplit} />
+  return <SplitPaneNode node={tree} onSplit={handleSplit} theme={theme} />
 }
 
 // ── Internal recursive renderer ────────────────────────
@@ -69,13 +70,14 @@ export function SplitPane({ tree, onTreeChange }: SplitPaneProps) {
 interface SplitPaneNodeProps {
   node: SplitNode
   onSplit: (targetId: string, direction: SplitDirection) => void
+  theme: ThemeMode
 }
 
-function SplitPaneNode({ node, onSplit }: SplitPaneNodeProps) {
+function SplitPaneNode({ node, onSplit, theme }: SplitPaneNodeProps) {
   if (node.type === 'leaf') {
     return (
       <div className="split-leaf">
-        <Cell leafId={node.id} />
+        <Cell leafId={node.id} theme={theme} />
         {/* Split buttons — hover reveal */}
         <div className="split-buttons">
           <button
@@ -100,9 +102,9 @@ function SplitPaneNode({ node, onSplit }: SplitPaneNodeProps) {
   // Branch node — render children in a flex container
   return (
     <div className={`split-branch split-${node.direction}`}>
-      <SplitPaneNode node={node.children[0]} onSplit={onSplit} />
+      <SplitPaneNode node={node.children[0]} onSplit={onSplit} theme={theme} />
       <div className="split-divider" />
-      <SplitPaneNode node={node.children[1]} onSplit={onSplit} />
+      <SplitPaneNode node={node.children[1]} onSplit={onSplit} theme={theme} />
     </div>
   )
 }

@@ -37,7 +37,7 @@ export interface SplitBranch {
 
 export type SplitNode = SplitLeaf | SplitBranch
 
-// ── AI Chat types ───────────────────────────────────────—
+// ── AI Chat types ───────────────────────────────────────
 
 export interface AiChatMessage {
   role: 'user' | 'assistant'
@@ -51,7 +51,7 @@ export interface AiChatRequest {
   systemPrompt?: string
 }
 
-// ── Tab types ───────────────────────────────────────────—
+// ── Tab types ───────────────────────────────────────────
 
 export interface Tab {
   id: string
@@ -59,13 +59,29 @@ export interface Tab {
   tree: SplitNode
 }
 
+// ── Theme types ───────────────────────────────────────────
+
+export type ThemeMode = 'dark' | 'light'
+
+export interface AppConfig {
+  theme: ThemeMode
+}
+
+export const CONFIG_CHANNELS = {
+  send: ['config:load', 'config:save'] as const,
+  on: ['config:loaded'] as const,
+} as const
+
+export type ConfigSendChannel = (typeof CONFIG_CHANNELS.send)[number]
+export type ConfigOnChannel = (typeof CONFIG_CHANNELS.on)[number]
+
 // ── Electron API type declarations ───────────────────────
 
 export interface ElectronAPI {
   platform: NodeJS.Platform
-  send: (channel: ValidSendChannel, ...args: unknown[]) => void
-  on: (channel: ValidOnChannel, callback: (...args: unknown[]) => void) => void
-  removeAllListeners: (channel: ValidOnChannel) => void
+  send: (channel: ValidSendChannel | ConfigSendChannel, ...args: unknown[]) => void
+  on: (channel: ValidOnChannel | ConfigOnChannel, callback: (...args: unknown[]) => void) => void
+  removeAllListeners: (channel: ValidOnChannel | ConfigOnChannel) => void
 }
 
 declare global {
