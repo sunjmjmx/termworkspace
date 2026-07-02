@@ -328,10 +328,10 @@ function setupIPC() {
   })
 
   // filetree:readdir — list directory contents
-  ipcMain.handle('filetree:readdir', (_event, dirPath: string): FileTreeEntry[] => {
+  ipcMain.on('filetree:readdir', (event, dirPath: string) => {
     try {
       const entries = readdirSync(dirPath, { withFileTypes: true })
-      return entries
+      const result = entries
         .filter((entry) => !entry.name.startsWith('.'))
         .map((entry) => ({
           name: entry.name,
@@ -344,8 +344,18 @@ function setupIPC() {
           }
           return a.name.localeCompare(b.name)
         })
+      event.reply('filetree:readdir-result', result)
     } catch {
-      return []
+      event.reply('filetree:readdir-result', [])
+    }
+  })
+
+  // filetree:open-file — write file path to the active terminal's PTY
+  ipcMain.on('filetree:open-file', (_event, terminalId: string, filePath: string) => {
+    const pty = ptyRegistry.get(terminalId)
+    if (pty) {
+      // Echo the path into the terminal so the user sees it
+      pty.write(`echo '${filePath.replace(/'/g, "'\\''")}'\n`)
     }
   })
 }

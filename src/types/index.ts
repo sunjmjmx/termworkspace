@@ -109,7 +109,7 @@ export interface FileTreeEntry {
 }
 
 export const FILETREE_CHANNELS = {
-  send: ['filetree:readdir'] as const,
+  send: ['filetree:readdir', 'filetree:open-file'] as const,
   on: ['filetree:readdir-result'] as const,
 } as const
 

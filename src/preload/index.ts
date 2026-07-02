@@ -5,6 +5,7 @@ const validSendChannels = [
   'ai:chat',
   'config:load', 'config:save',
   'layout:load', 'layout:save',
+  'filetree:readdir', 'filetree:open-file',
 ]
 
 const validOnChannels = [
@@ -12,6 +13,7 @@ const validOnChannels = [
   'ai:chunk', 'ai:done',
   'config:loaded',
   'layout:loaded',
+  'filetree:readdir-result',
 ]
 
 contextBridge.exposeInMainWorld('electronAPI', {
