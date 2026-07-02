@@ -3,6 +3,7 @@ import { useEffect, useRef, useCallback } from 'react'
 interface PtyCallbacks {
   onData: (data: string) => void
   onExit: (exitCode: number) => void
+  onError?: (error: string) => void
 }
 
 /**
@@ -31,6 +32,13 @@ export function usePty(terminalId: string, callbacks: PtyCallbacks, cwd?: string
     }
   }, [terminalId])
 
+  // Error callback — stable reference
+  const onError = useCallback((_terminalId: string, error: string) => {
+    if (_terminalId === terminalId) {
+      callbacksRef.current.onError?.(error)
+    }
+  }, [terminalId])
+
   // Create PTY on mount, clean up on unmount
   useEffect(() => {
     const api = window.electronAPI
@@ -40,6 +48,8 @@ export function usePty(terminalId: string, callbacks: PtyCallbacks, cwd?: string
     api.on('terminal:output', onData as any)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     api.on('terminal:exit', onExit as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    api.on('terminal:error', onError as any)
 
     // Spawn the PTY in main process — pass cwd if provided
     if (cwd) {
@@ -52,8 +62,9 @@ export function usePty(terminalId: string, callbacks: PtyCallbacks, cwd?: string
       api.send('terminal:kill', terminalId)
       api.removeAllListeners('terminal:output')
       api.removeAllListeners('terminal:exit')
+      api.removeAllListeners('terminal:error')
     }
-  }, [terminalId, onData, onExit, cwd])
+  }, [terminalId, onData, onExit, onError, cwd])
 
   // Write keystrokes to PTY
   const write = useCallback((data: string) => {

@@ -3,7 +3,7 @@ import path from 'path'
 import os from 'os'
 import { spawn } from 'node-pty'
 import https from 'https'
-import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'fs'
+import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync, statSync, realpathSync } from 'fs'
 import type { AiChatRequest, AppConfig, LayoutData, FileTreeEntry, AiChatMessage } from '../types'
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
@@ -210,36 +210,86 @@ function setupIPC() {
 
   // terminal:create — spawn a new PTY process
   ipcMain.on('terminal:create', (_event, terminalId: string, cwd?: string) => {
+    // Kill existing PTY for this terminal ID
     const existing = ptyRegistry.get(terminalId)
     if (existing) {
-      existing.kill()
+      try { existing.kill() } catch { /* ignore */ }
       ptyRegistry.delete(terminalId)
     }
 
-    const shell = process.env.SHELL || '/bin/zsh'
-    const ptyCwd = cwd || process.env.HOME || os.homedir()
-    const pty = spawn(shell, [], {
-      name: 'xterm-256color',
-      cols: 80,
-      rows: 24,
-      cwd: ptyCwd,
-      env: { ...process.env } as { [key: string]: string },
-    })
+    // Resolve shell path: fall back to /bin/zsh (macOS default)
+    const shell = process.env.SHELL && existsSync(process.env.SHELL)
+      ? process.env.SHELL
+      : '/bin/zsh'
 
-    ptyRegistry.set(terminalId, pty)
-
-    pty.onData((data: string) => {
+    // Verify shell exists
+    if (!existsSync(shell)) {
+      console.error(`[termworkspace] Shell not found: ${shell}`)
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('terminal:output', terminalId, data)
+        mainWindow.webContents.send('terminal:error', terminalId, `Shell not found: ${shell}`)
       }
-    })
+      return
+    }
 
-    pty.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('terminal:exit', terminalId, exitCode, signal)
+    // Resolve cwd: fallback to HOME, verify it exists
+    let ptyCwd: string
+    if (cwd && existsSync(cwd)) {
+      try { ptyCwd = realpathSync(cwd) } catch { ptyCwd = cwd }
+    } else {
+      ptyCwd = os.homedir()
+    }
+
+    // Build a safe environment with explicit PATH fallback
+    const safeEnv: Record<string, string> = {}
+    if (process.env) {
+      for (const [k, v] of Object.entries(process.env)) {
+        if (typeof v === 'string') safeEnv[k] = v
       }
-      ptyRegistry.delete(terminalId)
-    })
+    }
+    // Ensure PATH has standard locations
+    const currentPath = safeEnv['PATH'] || ''
+    const stdPaths = ['/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin',
+      '/opt/homebrew/bin', '/opt/homebrew/sbin',
+      `${os.homedir()}/.local/bin`].join(':')
+    if (!currentPath.includes('/usr/bin')) {
+      safeEnv['PATH'] = `${currentPath}:${stdPaths}`
+    }
+
+    try {
+      // Resolve real paths to avoid symlink issues
+      const resolvedShell = realpathSync(shell)
+      const resolvedCwd = ptyCwd
+
+      console.log(`[termworkspace] Creating PTY: shell=${resolvedShell} cwd=${resolvedCwd}`)
+      const pty = spawn(resolvedShell, ['-l'], {  // -l = login shell
+        name: 'xterm-256color',
+        cols: 80,
+        rows: 24,
+        cwd: resolvedCwd,
+        env: safeEnv,
+      })
+
+      ptyRegistry.set(terminalId, pty)
+
+      pty.onData((data: string) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('terminal:output', terminalId, data)
+        }
+      })
+
+      pty.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('terminal:exit', terminalId, exitCode, signal)
+        }
+        ptyRegistry.delete(terminalId)
+      })
+    } catch (err: any) {
+      console.error(`[termworkspace] PTY spawn failed:`, err.message)
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('terminal:error', terminalId,
+          `Failed to create terminal: ${err.message}`)
+      }
+    }
   })
 
   // terminal:write — send keystrokes to PTY stdin

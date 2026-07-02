@@ -78,6 +78,9 @@ export function Terminal({ terminalId, theme, projectPath }: TerminalProps) {
     onExit: (_exitCode) => {
       termRef.current?.write('\r\n\x1b[31m[process exited]\x1b[0m')
     },
+    onError: (error) => {
+      termRef.current?.write(`\r\n\x1b[31m[ERROR] ${error}\x1b[0m`)
+    },
   }, projectPath)
 
   // ── Bootstrap xterm.js ──────────────────────────────────
