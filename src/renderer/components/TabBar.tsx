@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react'
-import type { Tab } from '../../types'
+import type { Tab, ThemeMode } from '../../types'
 
 interface TabBarProps {
   tabs: Tab[]
@@ -7,17 +7,20 @@ interface TabBarProps {
   onSwitch: (id: string) => void
   onClose: (id: string) => void
   onCreate: () => void
+  theme: ThemeMode
+  onToggleTheme: () => void
 }
 
 /**
- * TabBar — horizontal tab bar with new/close controls.
+ * TabBar — horizontal tab bar with new/close controls and theme toggle.
  *
  * - Scrollable tab list, active tab highlighted.
  * - Each tab has a close button (×), visible on hover.
  * - New tab button (+) at the end.
+ * - Theme toggle button (🌙/☀️) at the right end.
  * - Auto-scrolls to keep the active tab visible.
  */
-export function TabBar({ tabs, activeTabId, onSwitch, onClose, onCreate }: TabBarProps) {
+export function TabBar({ tabs, activeTabId, onSwitch, onClose, onCreate, theme, onToggleTheme }: TabBarProps) {
   const tabsRef = useRef<HTMLDivElement>(null)
   const activeTabRef = useRef<HTMLButtonElement>(null)
 
@@ -57,6 +60,13 @@ export function TabBar({ tabs, activeTabId, onSwitch, onClose, onCreate }: TabBa
           +
         </button>
       </div>
+      <button
+        className="theme-toggle-btn"
+        onClick={onToggleTheme}
+        title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+      >
+        {theme === 'dark' ? '☀️' : '🌙'}
+      </button>
     </div>
   )
 }

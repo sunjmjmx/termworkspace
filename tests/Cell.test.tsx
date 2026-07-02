@@ -19,7 +19,7 @@ describe('Cell', () => {
   })
 
   it('should render with terminal mode by default', () => {
-    const { container } = render(<Cell leafId="test-leaf-1" />)
+    const { container } = render(<Cell leafId="test-leaf-1" theme="dark" />)
 
     // The terminal layer should be visible, AI layer hidden
     expect(container.querySelector('.cell')).toBeInTheDocument()
@@ -28,7 +28,7 @@ describe('Cell', () => {
   })
 
   it('should show mode toggle button', () => {
-    render(<Cell leafId="test-leaf-1" />)
+    render(<Cell leafId="test-leaf-1" theme="dark" />)
 
     // Mode switch button should be present
     const toggleBtn = screen.getByRole('button')
@@ -36,7 +36,7 @@ describe('Cell', () => {
   })
 
   it('should toggle from terminal to AI mode on button click', () => {
-    const { container } = render(<Cell leafId="test-leaf-1" />)
+    const { container } = render(<Cell leafId="test-leaf-1" theme="dark" />)
 
     // Button should show AI icon in terminal mode
     const toggleBtn = screen.getByTitle('Switch to AI mode')
@@ -50,7 +50,7 @@ describe('Cell', () => {
   })
 
   it('should toggle back from AI to terminal mode', () => {
-    const { container } = render(<Cell leafId="test-leaf-1" />)
+    const { container } = render(<Cell leafId="test-leaf-1" theme="dark" />)
 
     // Switch to AI
     fireEvent.click(screen.getByTitle('Switch to AI mode'))
@@ -63,7 +63,7 @@ describe('Cell', () => {
   })
 
   it('should display display:none for inactive mode layer', () => {
-    const { container } = render(<Cell leafId="test-leaf-1" />)
+    const { container } = render(<Cell leafId="test-leaf-1" theme="dark" />)
 
     const layers = container.querySelectorAll('.cell-layer')
     expect(layers.length).toBe(2)
