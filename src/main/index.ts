@@ -444,18 +444,13 @@ app.whenReady().then(() => {
   setupIPC()
   createWindow()
 
-  // On ready-to-show, check if project path is set; if not, prompt the user
-  mainWindow?.on('ready-to-show', async () => {
+  // On ready-to-show, check if project path is set; if not, the renderer
+  // will show the project picker overlay. Do NOT call promptProjectFolder()
+  // here — it would race with the renderer's IPC invoke and cause a deadlock.
+  mainWindow?.on('ready-to-show', () => {
     const config = loadConfig()
 
-    if (!config.projectPath) {
-      const selectedPath = await promptProjectFolder()
-      if (selectedPath) {
-        config.projectPath = selectedPath
-        saveConfig(config)
-        mainWindow?.webContents.send('project:selected', selectedPath)
-      }
-    } else {
+    if (config.projectPath) {
       // Already have a project path — send it to the renderer
       mainWindow?.webContents.send('project:selected', config.projectPath)
     }
