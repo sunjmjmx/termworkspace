@@ -1,17 +1,12 @@
-import { useReducer, useCallback } from 'react'
-import { Terminal } from './Terminal'
+import { useCallback } from 'react'
+import { Cell } from './Cell'
 import type { SplitNode, SplitDirection } from '../../types'
-
-// ── Action types ───────────────────────────────────────
-
-type SplitAction =
-  | { type: 'SPLIT'; targetId: string; direction: SplitDirection }
 
 // ── Helpers ────────────────────────────────────────────
 
 let nextId = 0
 function generateId(): string {
-  return `term_${++nextId}`
+  return `leaf_${++nextId}`
 }
 
 function createLeaf(): SplitNode {
@@ -20,7 +15,6 @@ function createLeaf(): SplitNode {
 
 /**
  * Replace a leaf node identified by targetId with a split branch.
- * Recursively walks the tree to find and replace the target.
  */
 function replaceLeaf(node: SplitNode, targetId: string, direction: SplitDirection): SplitNode {
   if (node.type === 'leaf') {
@@ -34,7 +28,6 @@ function replaceLeaf(node: SplitNode, targetId: string, direction: SplitDirectio
     return node
   }
 
-  // Branch node — recurse into children
   return {
     ...node,
     children: [
@@ -44,41 +37,30 @@ function replaceLeaf(node: SplitNode, targetId: string, direction: SplitDirectio
   }
 }
 
-// ── Reducer ────────────────────────────────────────────
-
-function splitReducer(state: SplitNode, action: SplitAction): SplitNode {
-  switch (action.type) {
-    case 'SPLIT':
-      return replaceLeaf(state, action.targetId, action.direction)
-    default:
-      return state
-  }
-}
-
 // ── Component ──────────────────────────────────────────
 
 interface SplitPaneProps {
-  /** Initial node tree (defaults to a single leaf) */
-  initialTree?: SplitNode
+  tree: SplitNode
+  onTreeChange: (tree: SplitNode) => void
 }
 
 /**
- * SplitPane — recursive binary tree split pane layout engine.
+ * SplitPane — controlled binary tree split pane layout engine.
  *
- * Root node starts as a single leaf (full-screen terminal).
- * Call onSplit(targetId, direction) to split a leaf into two.
+ * - `tree`: the current node tree.
+ * - `onTreeChange`: called when a split occurs.
+ *
+ * Each leaf renders a <Cell> which can show Terminal or AI Chat.
  */
-export function SplitPane({ initialTree }: SplitPaneProps) {
-  const [tree, dispatch] = useReducer(
-    splitReducer,
-    initialTree ?? createLeaf(),
+export function SplitPane({ tree, onTreeChange }: SplitPaneProps) {
+  const handleSplit = useCallback(
+    (targetId: string, direction: SplitDirection) => {
+      onTreeChange(replaceLeaf(tree, targetId, direction))
+    },
+    [tree, onTreeChange],
   )
 
-  const onSplit = useCallback((targetId: string, direction: SplitDirection) => {
-    dispatch({ type: 'SPLIT', targetId, direction })
-  }, [])
-
-  return <SplitPaneNode node={tree} onSplit={onSplit} />
+  return <SplitPaneNode node={tree} onSplit={handleSplit} />
 }
 
 // ── Internal recursive renderer ────────────────────────
@@ -92,8 +74,8 @@ function SplitPaneNode({ node, onSplit }: SplitPaneNodeProps) {
   if (node.type === 'leaf') {
     return (
       <div className="split-leaf">
-        <Terminal terminalId={node.id} />
-        {/* Split buttons — temporarily visible for testing */}
+        <Cell leafId={node.id} />
+        {/* Split buttons — hover reveal */}
         <div className="split-buttons">
           <button
             className="split-btn split-btn-h"
@@ -116,9 +98,7 @@ function SplitPaneNode({ node, onSplit }: SplitPaneNodeProps) {
 
   // Branch node — render children in a flex container
   return (
-    <div
-      className={`split-branch split-${node.direction}`}
-    >
+    <div className={`split-branch split-${node.direction}`}>
       <SplitPaneNode node={node.children[0]} onSplit={onSplit} />
       <div className="split-divider" />
       <SplitPaneNode node={node.children[1]} onSplit={onSplit} />
