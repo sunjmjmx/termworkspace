@@ -151,6 +151,15 @@ function setupIPC() {
     }
   })
 
+  // terminal:kill — kill PTY process and remove from registry
+  ipcMain.on('terminal:kill', (_event, terminalId: string) => {
+    const pty = ptyRegistry.get(terminalId)
+    if (pty) {
+      pty.kill()
+      ptyRegistry.delete(terminalId)
+    }
+  })
+
   // ai:chat — send prompt to LLM API with streaming response
   ipcMain.on('ai:chat', (_event, request: AiChatRequest) => {
     const { terminalId, prompt, model: modelOverride, systemPrompt } = request

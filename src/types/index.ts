@@ -1,7 +1,7 @@
 // ── Channel definitions ──────────────────────────────────
 
 export const TERMINAL_CHANNELS = {
-  send: ['terminal:create', 'terminal:resize', 'terminal:write'] as const,
+  send: ['terminal:create', 'terminal:resize', 'terminal:write', 'terminal:kill'] as const,
   on: ['terminal:output', 'terminal:exit', 'terminal:error'] as const,
 } as const
 

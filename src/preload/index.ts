@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 const validSendChannels = [
-  'terminal:create', 'terminal:resize', 'terminal:write',
+  'terminal:create', 'terminal:resize', 'terminal:write', 'terminal:kill',
   'ai:chat',
 ]
 
