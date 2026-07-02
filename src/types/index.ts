@@ -101,6 +101,13 @@ export const CHAT_CHANNELS = {
 export type ChatSendChannel = (typeof CHAT_CHANNELS.send)[number]
 export type ChatOnChannel = (typeof CHAT_CHANNELS.on)[number]
 
+// ── Chat persistence interface ────────────────────────────
+
+export interface ChatPersistence {
+  loadChat(chatId: string): AiChatMessage[]
+  saveChat(chatId: string, messages: AiChatMessage[]): void
+}
+
 // ── File tree types ──────────────────────────────────────
 
 export interface FileTreeEntry {

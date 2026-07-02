@@ -4,7 +4,7 @@ import os from 'os'
 import { spawn } from 'node-pty'
 import https from 'https'
 import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'fs'
-import type { AiChatRequest, AppConfig, LayoutData, FileTreeEntry } from '../types'
+import type { AiChatRequest, AppConfig, LayoutData, FileTreeEntry, AiChatMessage } from '../types'
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
@@ -96,6 +96,36 @@ function loadLayout(): LayoutData | null {
 function saveLayout(layout: LayoutData): void {
   mkdirSync(layoutDir, { recursive: true })
   writeFileSync(layoutFile, JSON.stringify(layout, null, 2), 'utf-8')
+}
+
+// ── Chat persistence ────────────────────────────────────────
+
+const chatDir = path.join(os.homedir(), '.termworkspace', 'chats')
+
+function ensureChatDir(): void {
+  mkdirSync(chatDir, { recursive: true })
+}
+
+function loadChat(chatId: string): AiChatMessage[] {
+  try {
+    const chatFile = path.join(chatDir, `${chatId}.json`)
+    if (existsSync(chatFile)) {
+      const raw = readFileSync(chatFile, 'utf-8')
+      const parsed = JSON.parse(raw) as AiChatMessage[]
+      return Array.isArray(parsed) ? parsed : []
+    }
+  } catch {
+    // corrupt or missing file, return empty
+  }
+  return []
+}
+
+function saveChat(chatId: string, messages: AiChatMessage[]): void {
+  ensureChatDir()
+  const chatFile = path.join(chatDir, `${chatId}.json`)
+  // Keep only the last 500 messages
+  const sliced = messages.slice(-500)
+  writeFileSync(chatFile, JSON.stringify(sliced, null, 2), 'utf-8')
 }
 
 // ── SSE parsing helper ───────────────────────────────────
@@ -390,6 +420,20 @@ function setupIPC() {
     saveConfig(config)
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('project:selected', projectPath)
+    }
+  })
+
+  // chat:load — load persisted messages for a chat session
+  ipcMain.on('chat:load', (event, chatId: string) => {
+    const messages = loadChat(chatId)
+    event.reply('chat:loaded', chatId, messages)
+  })
+
+  // chat:save — persist current messages to disk
+  ipcMain.on('chat:save', (_event, chatId: string, messages: AiChatMessage[]) => {
+    saveChat(chatId, messages)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('chat:saved', chatId)
     }
   })
 }

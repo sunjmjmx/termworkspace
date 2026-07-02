@@ -7,6 +7,7 @@ const validSendChannels = [
   'layout:load', 'layout:save',
   'filetree:readdir', 'filetree:open-file',
   'project:cwd-set',
+  'chat:load', 'chat:save',
 ]
 
 const validOnChannels = [
@@ -16,6 +17,7 @@ const validOnChannels = [
   'layout:loaded',
   'filetree:readdir-result',
   'project:selected',
+  'chat:loaded', 'chat:saved',
 ]
 
 contextBridge.exposeInMainWorld('electronAPI', {

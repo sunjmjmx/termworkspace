@@ -11,11 +11,13 @@ interface AIChatProps {
 }
 
 /**
- * AIChat — AI dialog component with streaming output.
+ * AIChat — AI dialog component with streaming output and persistence.
  *
  * - Input box + message list.
  * - Enter sends, Shift+Enter adds newline.
  * - Streaming response via IPC events (ai:chunk, ai:done).
+ * - Messages persisted to ~/.termworkspace/chats/<chatId>.json.
+ * - On mount: loads persisted history; on ai:done: saves.
  * - Message bubbles with Catppuccin Mocha palette.
  */
 export function AIChat({ chatId, model, systemPrompt }: AIChatProps) {
@@ -24,6 +26,13 @@ export function AIChat({ chatId, model, systemPrompt }: AIChatProps) {
   const [isStreaming, setIsStreaming] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  // Ref to track latest messages for use in event callbacks without re-subscribing
+  const messagesRef = useRef(messages)
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -33,6 +42,14 @@ export function AIChat({ chatId, model, systemPrompt }: AIChatProps) {
   // Subscribe to IPC events
   useEffect(() => {
     const api = window.electronAPI
+
+    const onLoaded = (...args: unknown[]) => {
+      const [_chatId, loadedMessages] = args as [string, AiChatMessage[]]
+      if (_chatId !== chatId) return
+      if (loadedMessages?.length) {
+        setMessages(loadedMessages)
+      }
+    }
 
     const onChunk = (...args: unknown[]) => {
       const [_chatId, text] = args as [string, string]
@@ -57,12 +74,23 @@ export function AIChat({ chatId, model, systemPrompt }: AIChatProps) {
       const [_chatId] = args as [string]
       if (_chatId !== chatId) return
       setIsStreaming(false)
+
+      // Save messages after streaming completes
+      const currentMsgs = messagesRef.current
+      const slicedMsgs = currentMsgs.length > 500
+        ? currentMsgs.slice(-500)
+        : currentMsgs
+      api.send('chat:save', chatId, slicedMsgs)
     }
 
+    // Load persisted messages on mount
+    api.send('chat:load', chatId)
+    api.on('chat:loaded', onLoaded)
     api.on('ai:chunk', onChunk)
     api.on('ai:done', onDone)
 
     return () => {
+      api.removeAllListeners('chat:loaded')
       api.removeAllListeners('ai:chunk')
       api.removeAllListeners('ai:done')
     }
