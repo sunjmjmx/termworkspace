@@ -7,10 +7,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
 
   // IPC helpers (will be expanded by subsequent phases)
-  send: (channel: string, data: unknown) => {
+  send: (channel: string, ...args: unknown[]) => {
     const validChannels = ['terminal:create', 'terminal:resize', 'terminal:write']
     if (validChannels.includes(channel)) {
-      ipcRenderer.send(channel, data)
+      ipcRenderer.send(channel, ...args)
     }
   },
   on: (channel: string, callback: (...args: unknown[]) => void) => {
