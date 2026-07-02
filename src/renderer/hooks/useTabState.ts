@@ -91,6 +91,18 @@ export function useTabState() {
     )
   }, [])
 
+  /**
+   * restoreTabs — replace entire tab state from persisted layout.
+   * Resets the tab counter so new tabs don't collide with restored IDs.
+   */
+  const restoreTabs = useCallback((newTabs: Tab[], activeId: string) => {
+    // Reset counters to avoid collisions with restored IDs
+    nextTabId = 0
+    nextLeafId = 0
+    setTabs(newTabs)
+    setActiveTabId(activeId)
+  }, [])
+
   return {
     tabs,
     activeTab,
@@ -100,5 +112,6 @@ export function useTabState() {
     closeTab,
     switchTab,
     renameTab,
+    restoreTabs,
   }
 }

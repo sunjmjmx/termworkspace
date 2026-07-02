@@ -75,13 +75,28 @@ export const CONFIG_CHANNELS = {
 export type ConfigSendChannel = (typeof CONFIG_CHANNELS.send)[number]
 export type ConfigOnChannel = (typeof CONFIG_CHANNELS.on)[number]
 
+// ── Layout persistence ────────────────────────────────────
+
+export interface LayoutData {
+  tabs: Tab[]
+  activeTabId: string
+}
+
+export const LAYOUT_CHANNELS = {
+  send: ['layout:load', 'layout:save'] as const,
+  on: ['layout:loaded'] as const,
+} as const
+
+export type LayoutSendChannel = (typeof LAYOUT_CHANNELS.send)[number]
+export type LayoutOnChannel = (typeof LAYOUT_CHANNELS.on)[number]
+
 // ── Electron API type declarations ───────────────────────
 
 export interface ElectronAPI {
   platform: NodeJS.Platform
-  send: (channel: ValidSendChannel | ConfigSendChannel, ...args: unknown[]) => void
-  on: (channel: ValidOnChannel | ConfigOnChannel, callback: (...args: unknown[]) => void) => void
-  removeAllListeners: (channel: ValidOnChannel | ConfigOnChannel) => void
+  send: (channel: ValidSendChannel | ConfigSendChannel | LayoutSendChannel, ...args: unknown[]) => void
+  on: (channel: ValidOnChannel | ConfigOnChannel | LayoutOnChannel, callback: (...args: unknown[]) => void) => void
+  removeAllListeners: (channel: ValidOnChannel | ConfigOnChannel | LayoutOnChannel) => void
 }
 
 declare global {

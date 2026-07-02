@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { SplitPane } from './components/SplitPane'
 import { TabBar } from './components/TabBar'
 import { useTabState } from './hooks/useTabState'
-import type { ThemeMode, AppConfig } from '../types'
+import type { ThemeMode, AppConfig, LayoutData } from '../types'
 
 function App(): React.ReactElement {
   const {
@@ -13,9 +13,14 @@ function App(): React.ReactElement {
     createTab,
     closeTab,
     switchTab,
+    restoreTabs,
   } = useTabState()
 
   const [theme, setTheme] = useState<ThemeMode>('dark')
+
+  // Ref to track whether initial layout has been restored
+  // Prevents auto-save from firing on the initial load
+  const layoutLoaded = useRef(false)
 
   // ── Load config on mount ─────────────────────────────
   useEffect(() => {
@@ -34,6 +39,39 @@ function App(): React.ReactElement {
       api.removeAllListeners('config:loaded')
     }
   }, [])
+
+  // ── Load layout on mount ─────────────────────────────
+  useEffect(() => {
+    const api = window.electronAPI
+    if (!api) return
+
+    api.on('layout:loaded', (raw: unknown) => {
+      const data = raw as LayoutData | null
+      if (data?.tabs?.length && data?.activeTabId) {
+        restoreTabs(data.tabs, data.activeTabId)
+      }
+      layoutLoaded.current = true
+    })
+    api.send('layout:load')
+
+    // Timeout fallback: even if no layout.json exists, mark as loaded
+    const fallback = setTimeout(() => {
+      layoutLoaded.current = true
+    }, 300)
+
+    return () => {
+      api.removeAllListeners('layout:loaded')
+      clearTimeout(fallback)
+    }
+  }, [restoreTabs])
+
+  // ── Auto-save layout on tabs change ──────────────────
+  useEffect(() => {
+    if (layoutLoaded.current && tabs.length > 0) {
+      const layout: LayoutData = { tabs, activeTabId }
+      window.electronAPI?.send('layout:save', layout)
+    }
+  }, [tabs, activeTabId])
 
   // ── Keep <html> class in sync with theme ──────────────
   useEffect(() => {

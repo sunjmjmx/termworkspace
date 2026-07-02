@@ -1,9 +1,10 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'path'
+import os from 'os'
 import { spawn } from 'node-pty'
 import https from 'https'
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs'
-import type { AiChatRequest, AppConfig } from '../types'
+import type { AiChatRequest, AppConfig, LayoutData } from '../types'
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
@@ -70,6 +71,31 @@ function loadAiConfig(): AiConfig | null {
   }
 
   return null
+}
+
+// ── Layout persistence ────────────────────────────────────
+
+const layoutDir = path.join(os.homedir(), '.termworkspace')
+const layoutFile = path.join(layoutDir, 'layout.json')
+
+function loadLayout(): LayoutData | null {
+  try {
+    if (existsSync(layoutFile)) {
+      const raw = readFileSync(layoutFile, 'utf-8')
+      const parsed = JSON.parse(raw) as LayoutData
+      if (parsed?.tabs?.length && parsed?.activeTabId) {
+        return parsed
+      }
+    }
+  } catch {
+    // corrupt or missing file, return null
+  }
+  return null
+}
+
+function saveLayout(layout: LayoutData): void {
+  mkdirSync(layoutDir, { recursive: true })
+  writeFileSync(layoutFile, JSON.stringify(layout, null, 2), 'utf-8')
 }
 
 // ── SSE parsing helper ───────────────────────────────────
@@ -288,6 +314,17 @@ function setupIPC() {
   // config:save — persist and broadcast
   ipcMain.on('config:save', (_event, config: AppConfig) => {
     saveConfig(config)
+  })
+
+  // layout:load — return saved layout
+  ipcMain.on('layout:load', (event) => {
+    const layout = loadLayout()
+    event.reply('layout:loaded', layout)
+  })
+
+  // layout:save — persist tab layout
+  ipcMain.on('layout:save', (_event, layout: LayoutData) => {
+    saveLayout(layout)
   })
 }
 
