@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import type { SplitNode, Tab } from '../../types'
 
 // ── Helpers ────────────────────────────────────────────
@@ -37,6 +37,9 @@ export function useTabState() {
   const tabsRef = useRef(tabs)
   tabsRef.current = tabs
 
+  // Ref to pass close-tab context from setTabs updater to useEffect
+  const closeInfoRef = useRef<{ wasActive: boolean; index: number } | null>(null)
+
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0]
 
   // Called by SplitPane when the tree changes (user splits a pane)
@@ -59,19 +62,24 @@ export function useTabState() {
   const closeTab = useCallback((id: string) => {
     setTabs((prev) => {
       if (prev.length <= 1) return prev // Don't close the last tab
-
       const index = prev.findIndex((t) => t.id === id)
-      const filtered = prev.filter((t) => t.id !== id)
-
-      // If we closed the active tab, switch to the nearest neighbor
-      if (id === activeTabId) {
-        const newIndex = Math.min(index, filtered.length - 1)
-        setActiveTabId(filtered[newIndex].id)
-      }
-
-      return filtered
+      closeInfoRef.current = { wasActive: id === activeTabId, index }
+      return prev.filter((t) => t.id !== id)
     })
   }, [activeTabId])
+
+  // If active tab was removed (via closeTab), switch to nearest neighbor
+  useEffect(() => {
+    const info = closeInfoRef.current
+    closeInfoRef.current = null
+    if (info && info.wasActive && tabs.length > 0) {
+      const newIndex = Math.min(info.index, tabs.length - 1)
+      setActiveTabId(tabs[newIndex].id)
+    } else if (tabs.length > 0 && !tabs.some((t) => t.id === activeTabId)) {
+      // Fallback: active tab was removed externally (edge case)
+      setActiveTabId(tabs[0].id)
+    }
+  }, [tabs, activeTabId])
 
   const switchTab = useCallback((id: string) => {
     setActiveTabId(id)
