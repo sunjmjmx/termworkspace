@@ -18,33 +18,115 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-.app {
+/* ── Split pane tree ──────────────────────────────────── */
+
+.split-branch {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Horizontal split: children side-by-side */
+.split-horizontal {
+  flex-direction: row;
+}
+
+/* Vertical split: children stacked */
+.split-vertical {
+  flex-direction: column;
+}
+
+/* ── Divider between panes ─────────────────────────────── */
+
+.split-divider {
+  flex-shrink: 0;
+  background: #313244;
+}
+
+.split-horizontal > .split-divider {
+  width: 4px;
+  cursor: col-resize;
+}
+
+.split-vertical > .split-divider {
+  height: 4px;
+  cursor: row-resize;
+}
+
+.split-divider:hover {
+  background: #89b4fa;
+}
+
+/* ── Leaf node (terminal) ─────────────────────────────── */
+
+.split-leaf {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100vh;
-  /* Account for hidden titlebar on macOS */
-  padding-top: 38px;
-  padding-left: 24px;
-  padding-right: 24px;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.app-header {
-  text-align: center;
+.split-leaf .terminal-container {
+  flex: 1;
+  min-height: 0;
+  padding: 4px;
 }
 
-.app-header h1 {
-  font-size: 2.5em;
-  font-weight: 700;
-  background: linear-gradient(135deg, #cba6f7, #89b4fa);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: 16px;
+/* xterm.js overrides */
+.split-leaf .terminal-container .xterm {
+  height: 100%;
+  padding: 4px;
 }
 
-.app-subtitle {
-  font-size: 1.1em;
-  color: #a6adc8;
+.split-leaf .terminal-container .xterm-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: #45475a transparent;
+}
+
+/* ── Split buttons (top-right overlay on terminal) ────── */
+
+.split-buttons {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 10;
+}
+
+.split-leaf:hover .split-buttons {
+  opacity: 1;
+}
+
+.split-btn {
+  background: #313244;
+  color: #cdd6f4;
+  border: 1px solid #45475a;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+.split-btn:hover {
+  background: #45475a;
+}
+
+.split-btn-h:hover {
+  border-color: #89b4fa;
+  color: #89b4fa;
+}
+
+.split-btn-v:hover {
+  border-color: #a6e3a1;
+  color: #a6e3a1;
 }
