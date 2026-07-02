@@ -7,7 +7,7 @@
   "main": "dist-electron/main/index.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && cp src/preload/index.cjs dist-electron/preload/index.cjs",
     "start": "electron .",
     "preview": "vite preview",
     "package": "electron-builder"

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+const { contextBridge, ipcRenderer } = require('electron')
 
 const validSendChannels = [
   'terminal:create', 'terminal:resize', 'terminal:write', 'terminal:kill',
@@ -23,23 +23,23 @@ const validOnChannels = [
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
 
-  send: (channel: string, ...args: unknown[]) => {
+  send: (channel, ...args) => {
     if (validSendChannels.includes(channel)) {
       ipcRenderer.send(channel, ...args)
     }
   },
 
-  on: (channel: string, callback: (...args: unknown[]) => void) => {
+  on: (channel, callback) => {
     if (validOnChannels.includes(channel)) {
       ipcRenderer.on(channel, (_event, ...args) => callback(...args))
     }
   },
 
-  invoke: (channel: string, ...args: unknown[]) => {
+  invoke: (channel, ...args) => {
     return ipcRenderer.invoke(channel, ...args)
   },
 
-  removeAllListeners: (channel: string) => {
+  removeAllListeners: (channel) => {
     if (validOnChannels.includes(channel)) {
       ipcRenderer.removeAllListeners(channel)
     }
