@@ -6,6 +6,9 @@ import https from 'https'
 import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'fs'
 import type { AiChatRequest, AppConfig, LayoutData, FileTreeEntry, AiChatMessage } from '../types'
 
+// Guard: prevent project dialog from opening twice (once via ready-to-show, once via IPC invoke)
+let projectDialogShown = false
+
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
 let mainWindow: BrowserWindow | null = null
@@ -201,6 +204,8 @@ async function promptProjectFolder(): Promise<string | null> {
 function setupIPC() {
   // dialog:select-project — open native folder picker
   ipcMain.handle('dialog:select-project', async (): Promise<string | null> => {
+    if (projectDialogShown) return null
+    projectDialogShown = true
     return await promptProjectFolder()
   })
 
@@ -444,15 +449,29 @@ app.whenReady().then(() => {
   setupIPC()
   createWindow()
 
-  // On ready-to-show, check if project path is set; if not, the renderer
-  // will show the project picker overlay. Do NOT call promptProjectFolder()
-  // here — it would race with the renderer's IPC invoke and cause a deadlock.
+  // On ready-to-show, check if project path is set; if not, prompt the user.
+  // Use setTimeout to defer the dialog out of the ready-to-show cycle,
+  // avoiding a deadlock with the renderer's IPC invoke.
+  let projectDialogShown = false
   mainWindow?.on('ready-to-show', () => {
     const config = loadConfig()
 
     if (config.projectPath) {
       // Already have a project path — send it to the renderer
       mainWindow?.webContents.send('project:selected', config.projectPath)
+    } else {
+      // Defer the dialog to avoid blocking ready-to-show
+      setTimeout(async () => {
+        if (projectDialogShown) return
+        if (!mainWindow || mainWindow.isDestroyed()) return
+        projectDialogShown = true
+        const selectedPath = await promptProjectFolder()
+        if (selectedPath) {
+          config.projectPath = selectedPath
+          saveConfig(config)
+          mainWindow?.webContents.send('project:selected', selectedPath)
+        }
+      }, 500)
     }
   })
 
