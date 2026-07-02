@@ -45,6 +45,7 @@ export function usePty(terminalId: string, callbacks: PtyCallbacks) {
     api.send('terminal:create', terminalId)
 
     return () => {
+      api.send('terminal:kill', terminalId)
       api.removeAllListeners('terminal:output')
       api.removeAllListeners('terminal:exit')
     }
