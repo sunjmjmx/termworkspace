@@ -46,7 +46,7 @@ interface AiConfig {
 
 function loadAiConfig(): AiConfig | null {
   // Try reading .env from project root
-  const envPath = path.join(__dirname, '../../.env')
+  const envPath = path.join(import.meta.dirname, '../../.env')
   if (existsSync(envPath)) {
     const text = readFileSync(envPath, 'utf-8')
     for (const line of text.split('\n')) {
@@ -159,7 +159,7 @@ function createWindow() {
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 12, y: 12 },
     webPreferences: {
-      preload: path.join(__dirname, '../preload/index.js'),
+      preload: path.join(import.meta.dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -174,7 +174,7 @@ function createWindow() {
   if (VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(VITE_DEV_SERVER_URL)
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'))
+    mainWindow.loadFile(path.join(import.meta.dirname, '../../dist/index.html'))
   }
 }
 
