@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "start": "electron .",
     "preview": "vite preview",
     "package": "electron-builder"
   },

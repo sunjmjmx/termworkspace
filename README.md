@@ -13,10 +13,10 @@ git clone https://github.com/sunjmjmx/termworkspace.git
 cd termworkspace
 npm install
 npm run build
-npx electron .
+npm start
 ```
 
-## 用户指南
+> 首次使用需在项目根目录创建 `.env` 文件配置 AI API 密钥
 
 详细的使用说明（安装、配置 API 密钥、日常场景、常见问题）见：
 

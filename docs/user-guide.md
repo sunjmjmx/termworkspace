@@ -19,7 +19,7 @@ echo 'DEEPSEEK_API_KEY=sk-your-key-here' > .env
 
 # 4. 构建并启动
 npm run build
-npx electron .
+npm start
 ```
 
 > **需要什么？** 一台 macOS 电脑，装好 Node.js 18+ 和 Git。  
@@ -185,7 +185,7 @@ cd termworkspace
 git pull
 npm install
 npm run build
-npx electron .
+npm start
 ```
 
 ### Q: 退出时要不要手动保存会话？
