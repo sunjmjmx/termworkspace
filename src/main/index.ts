@@ -326,6 +326,28 @@ function setupIPC() {
   ipcMain.on('layout:save', (_event, layout: LayoutData) => {
     saveLayout(layout)
   })
+
+  // filetree:readdir — list directory contents
+  ipcMain.handle('filetree:readdir', (_event, dirPath: string): FileTreeEntry[] => {
+    try {
+      const entries = readdirSync(dirPath, { withFileTypes: true })
+      return entries
+        .filter((entry) => !entry.name.startsWith('.'))
+        .map((entry) => ({
+          name: entry.name,
+          path: path.join(dirPath, entry.name),
+          isDirectory: entry.isDirectory(),
+        }))
+        .sort((a, b) => {
+          if (a.isDirectory !== b.isDirectory) {
+            return a.isDirectory ? -1 : 1
+          }
+          return a.name.localeCompare(b.name)
+        })
+    } catch {
+      return []
+    }
+  })
 }
 
 // ── App lifecycle ─────────────────────────────────────────
