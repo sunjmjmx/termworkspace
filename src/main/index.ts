@@ -29,23 +29,43 @@ function loadAiConfig(): AiConfig | null {
       const trimmed = line.trim()
       if (trimmed.startsWith('KIMI_API_KEY=')) {
         const key = trimmed.slice('KIMI_API_KEY='.length).replace(/['"]/g, '')
-        return { apiKey: key, baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k' }
+        return { apiKey: key, baseUrl: 'https://api.moonshot.cn/v1', model: 'kimi-k2.6' }
       }
       if (trimmed.startsWith('DEEPSEEK_API_KEY=')) {
         const key = trimmed.slice('DEEPSEEK_API_KEY='.length).replace(/['"]/g, '')
-        return { apiKey: key, baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat' }
+        return { apiKey: key, baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-flash' }
       }
     }
   }
 
   // Fall back to process.env
   if (process.env.KIMI_API_KEY) {
-    return { apiKey: process.env.KIMI_API_KEY, baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k' }
+    return { apiKey: process.env.KIMI_API_KEY, baseUrl: 'https://api.moonshot.cn/v1', model: 'kimi-k2.6' }
   }
   if (process.env.DEEPSEEK_API_KEY) {
-    return { apiKey: process.env.DEEPSEEK_API_KEY, baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat' }
+    return { apiKey: process.env.DEEPSEEK_API_KEY, baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-flash' }
   }
 
+  return null
+}
+
+// ── SSE parsing helper ───────────────────────────────────
+
+/**
+ * Parse a single SSE data: line and extract the delta content.
+ * Returns null for [DONE], empty, or malformed lines.
+ */
+function parseSSEContent(line: string): string | null {
+  const trimmed = line.trim()
+  if (!trimmed || trimmed === 'data: [DONE]') return null
+  if (trimmed.startsWith('data: ')) {
+    try {
+      const json = JSON.parse(trimmed.slice(6))
+      return json.choices?.[0]?.delta?.content || null
+    } catch {
+      return null
+    }
+  }
   return null
 }
 
@@ -181,25 +201,14 @@ function setupIPC() {
       res.on('data', (chunk: Buffer) => {
         buffer += chunk.toString('utf-8')
 
-        // Parse SSE lines
+        // Parse SSE lines, keeping incomplete last line in buffer
         const lines = buffer.split('\n')
-        // Keep the last partial line in buffer
         buffer = lines.pop() || ''
 
         for (const line of lines) {
-          const trimmed = line.trim()
-          if (!trimmed || trimmed === 'data: [DONE]') continue
-
-          if (trimmed.startsWith('data: ')) {
-            try {
-              const json = JSON.parse(trimmed.slice(6))
-              const content = json.choices?.[0]?.delta?.content || ''
-              if (content && mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('ai:chunk', terminalId, content)
-              }
-            } catch {
-              // Skip malformed JSON chunks
-            }
+          const content = parseSSEContent(line)
+          if (content && mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('ai:chunk', terminalId, content)
           }
         }
       })
@@ -207,17 +216,9 @@ function setupIPC() {
       res.on('end', () => {
         // Flush remaining buffer
         if (buffer.trim()) {
-          const trimmed = buffer.trim()
-          if (trimmed.startsWith('data: ') && trimmed !== 'data: [DONE]') {
-            try {
-              const json = JSON.parse(trimmed.slice(6))
-              const content = json.choices?.[0]?.delta?.content || ''
-              if (content && mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('ai:chunk', terminalId, content)
-              }
-            } catch {
-              // Skip
-            }
+          const content = parseSSEContent(buffer)
+          if (content && mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('ai:chunk', terminalId, content)
           }
         }
 
@@ -225,6 +226,14 @@ function setupIPC() {
           mainWindow.webContents.send('ai:done', terminalId)
         }
       })
+    })
+
+    req.setTimeout(30000, () => {
+      req.destroy()
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('ai:chunk', terminalId, `\n❌ Request timed out after 30s`)
+        mainWindow.webContents.send('ai:done', terminalId)
+      }
     })
 
     req.on('error', (err) => {
