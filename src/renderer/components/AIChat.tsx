@@ -34,7 +34,8 @@ export function AIChat({ chatId, model, systemPrompt }: AIChatProps) {
   useEffect(() => {
     const api = window.electronAPI
 
-    const onChunk = (_chatId: string, text: string) => {
+    const onChunk = (...args: unknown[]) => {
+      const [_chatId, text] = args as [string, string]
       if (_chatId !== chatId) return
 
       setMessages((prev) => {
@@ -52,15 +53,14 @@ export function AIChat({ chatId, model, systemPrompt }: AIChatProps) {
       })
     }
 
-    const onDone = (_chatId: string) => {
+    const onDone = (...args: unknown[]) => {
+      const [_chatId] = args as [string]
       if (_chatId !== chatId) return
       setIsStreaming(false)
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    api.on('ai:chunk', onChunk as any)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    api.on('ai:done', onDone as any)
+    api.on('ai:chunk', onChunk)
+    api.on('ai:done', onDone)
 
     return () => {
       api.removeAllListeners('ai:chunk')
