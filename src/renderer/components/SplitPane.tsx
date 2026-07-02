@@ -15,8 +15,9 @@ function createLeaf(): SplitNode {
 
 /**
  * Replace a leaf node identified by targetId with a split branch.
+ * Exported for testing.
  */
-function replaceLeaf(node: SplitNode, targetId: string, direction: SplitDirection): SplitNode {
+export function replaceLeaf(node: SplitNode, targetId: string, direction: SplitDirection): SplitNode {
   if (node.type === 'leaf') {
     if (node.id === targetId) {
       return {
