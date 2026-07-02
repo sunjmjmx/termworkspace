@@ -3,8 +3,8 @@ import path from 'path'
 import os from 'os'
 import { spawn } from 'node-pty'
 import https from 'https'
-import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs'
-import type { AiChatRequest, AppConfig, LayoutData } from '../types'
+import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'fs'
+import type { AiChatRequest, AppConfig, LayoutData, FileTreeEntry } from '../types'
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 

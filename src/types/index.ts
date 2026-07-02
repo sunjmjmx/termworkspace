@@ -90,13 +90,39 @@ export const LAYOUT_CHANNELS = {
 export type LayoutSendChannel = (typeof LAYOUT_CHANNELS.send)[number]
 export type LayoutOnChannel = (typeof LAYOUT_CHANNELS.on)[number]
 
+// ── Chat persistence ──────────────────────────────────────
+
+export const CHAT_CHANNELS = {
+  send: ['chat:load', 'chat:save'] as const,
+  on: ['chat:loaded', 'chat:saved'] as const,
+} as const
+
+export type ChatSendChannel = (typeof CHAT_CHANNELS.send)[number]
+export type ChatOnChannel = (typeof CHAT_CHANNELS.on)[number]
+
+// ── File tree types ──────────────────────────────────────
+
+export interface FileTreeEntry {
+  name: string
+  path: string
+  isDirectory: boolean
+}
+
+export const FILETREE_CHANNELS = {
+  send: ['filetree:readdir'] as const,
+  on: ['filetree:readdir-result'] as const,
+} as const
+
+export type FileTreeSendChannel = (typeof FILETREE_CHANNELS.send)[number]
+export type FileTreeOnChannel = (typeof FILETREE_CHANNELS.on)[number]
+
 // ── Electron API type declarations ───────────────────────
 
 export interface ElectronAPI {
   platform: NodeJS.Platform
-  send: (channel: ValidSendChannel | ConfigSendChannel | LayoutSendChannel, ...args: unknown[]) => void
-  on: (channel: ValidOnChannel | ConfigOnChannel | LayoutOnChannel, callback: (...args: unknown[]) => void) => void
-  removeAllListeners: (channel: ValidOnChannel | ConfigOnChannel | LayoutOnChannel) => void
+  send: (channel: ValidSendChannel | ConfigSendChannel | LayoutSendChannel | ChatSendChannel | FileTreeSendChannel, ...args: unknown[]) => void
+  on: (channel: ValidOnChannel | ConfigOnChannel | LayoutOnChannel | ChatOnChannel | FileTreeOnChannel, callback: (...args: unknown[]) => void) => void
+  removeAllListeners: (channel: ValidOnChannel | ConfigOnChannel | LayoutOnChannel | ChatOnChannel | FileTreeOnChannel) => void
 }
 
 declare global {
