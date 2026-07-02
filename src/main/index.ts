@@ -183,7 +183,8 @@ function createWindow() {
 async function promptProjectFolder(): Promise<string | null> {
   if (!mainWindow) return null
 
-  const result = await dialog.showOpenDialog(mainWindow, {
+  // Use a standalone dialog (no browserWindow) to avoid window-state issues on macOS
+  const result = await dialog.showOpenDialog({
     properties: ['openDirectory'],
     title: 'Select Project Folder',
     message: 'Choose a project folder to open in TermWorkspace',
@@ -201,7 +202,10 @@ async function promptProjectFolder(): Promise<string | null> {
 function setupIPC() {
   // dialog:select-project — open native folder picker
   ipcMain.handle('dialog:select-project', async (): Promise<string | null> => {
-    return await promptProjectFolder()
+    console.log('[termworkspace] dialog:select-project invoked')
+    const result = await promptProjectFolder()
+    console.log('[termworkspace] dialog result:', result)
+    return result
   })
 
   // terminal:create — spawn a new PTY process
@@ -445,26 +449,14 @@ app.whenReady().then(() => {
   createWindow()
 
   // On ready-to-show, check if project path is set; if not, prompt the user.
-  // Use setTimeout to defer the dialog out of the ready-to-show cycle,
-  // avoiding a deadlock with the renderer's IPC invoke.
-  let projectDialogShown = false
+  // On ready-to-show, check if project path is set; if not, the renderer
+  // shows the project picker overlay. The user clicks the button to open the dialog.
   mainWindow?.on('ready-to-show', () => {
     const config = loadConfig()
 
     if (config.projectPath) {
       // Already have a project path — send it to the renderer
       mainWindow?.webContents.send('project:selected', config.projectPath)
-    } else {
-      // Defer the dialog to avoid blocking ready-to-show
-      setTimeout(async () => {
-        if (!mainWindow || mainWindow.isDestroyed()) return
-        const selectedPath = await promptProjectFolder()
-        if (selectedPath) {
-          config.projectPath = selectedPath
-          saveConfig(config)
-          mainWindow?.webContents.send('project:selected', selectedPath)
-        }
-      }, 500)
     }
   })
 

@@ -128,14 +128,21 @@ function App(): React.ReactElement {
   const openProjectPicker = useCallback(async () => {
     setShowProjectPicker(true)
     const api = window.electronAPI
-    if (!api) return
+    if (!api) {
+      setShowProjectPicker(false)
+      return
+    }
 
-    const result = await api.invoke('dialog:select-project')
-    const selectedPath = result as string | null
-    if (selectedPath) {
-      setProjectPath(selectedPath)
-      // Persist to config and notify all windows
-      api.send('project:cwd-set', selectedPath)
+    try {
+      const result = await api.invoke('dialog:select-project')
+      const selectedPath = result as string | null
+      if (selectedPath) {
+        setProjectPath(selectedPath)
+        // Persist to config and notify all windows
+        api.send('project:cwd-set', selectedPath)
+      }
+    } catch (err) {
+      console.error('Failed to open project picker:', err)
     }
     setShowProjectPicker(false)
   }, [])
