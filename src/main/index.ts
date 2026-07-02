@@ -1,9 +1,10 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'path'
+import os from 'os'
 import { spawn } from 'node-pty'
 import https from 'https'
-import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs'
-import type { AiChatRequest, AppConfig } from '../types'
+import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'fs'
+import type { AiChatRequest, AppConfig, LayoutData, FileTreeEntry } from '../types'
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
@@ -70,6 +71,31 @@ function loadAiConfig(): AiConfig | null {
   }
 
   return null
+}
+
+// ── Layout persistence ────────────────────────────────────
+
+const layoutDir = path.join(os.homedir(), '.termworkspace')
+const layoutFile = path.join(layoutDir, 'layout.json')
+
+function loadLayout(): LayoutData | null {
+  try {
+    if (existsSync(layoutFile)) {
+      const raw = readFileSync(layoutFile, 'utf-8')
+      const parsed = JSON.parse(raw) as LayoutData
+      if (parsed?.tabs?.length && parsed?.activeTabId) {
+        return parsed
+      }
+    }
+  } catch {
+    // corrupt or missing file, return null
+  }
+  return null
+}
+
+function saveLayout(layout: LayoutData): void {
+  mkdirSync(layoutDir, { recursive: true })
+  writeFileSync(layoutFile, JSON.stringify(layout, null, 2), 'utf-8')
 }
 
 // ── SSE parsing helper ───────────────────────────────────
@@ -288,6 +314,49 @@ function setupIPC() {
   // config:save — persist and broadcast
   ipcMain.on('config:save', (_event, config: AppConfig) => {
     saveConfig(config)
+  })
+
+  // layout:load — return saved layout
+  ipcMain.on('layout:load', (event) => {
+    const layout = loadLayout()
+    event.reply('layout:loaded', layout)
+  })
+
+  // layout:save — persist tab layout
+  ipcMain.on('layout:save', (_event, layout: LayoutData) => {
+    saveLayout(layout)
+  })
+
+  // filetree:readdir — list directory contents
+  ipcMain.on('filetree:readdir', (event, dirPath: string) => {
+    try {
+      const entries = readdirSync(dirPath, { withFileTypes: true })
+      const result = entries
+        .filter((entry) => !entry.name.startsWith('.'))
+        .map((entry) => ({
+          name: entry.name,
+          path: path.join(dirPath, entry.name),
+          isDirectory: entry.isDirectory(),
+        }))
+        .sort((a, b) => {
+          if (a.isDirectory !== b.isDirectory) {
+            return a.isDirectory ? -1 : 1
+          }
+          return a.name.localeCompare(b.name)
+        })
+      event.reply('filetree:readdir-result', result)
+    } catch {
+      event.reply('filetree:readdir-result', [])
+    }
+  })
+
+  // filetree:open-file — write file path to the active terminal's PTY
+  ipcMain.on('filetree:open-file', (_event, terminalId: string, filePath: string) => {
+    const pty = ptyRegistry.get(terminalId)
+    if (pty) {
+      // Echo the path into the terminal so the user sees it
+      pty.write(`echo '${filePath.replace(/'/g, "'\\''")}'\n`)
+    }
   })
 }
 
