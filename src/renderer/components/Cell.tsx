@@ -8,6 +8,7 @@ type CellMode = 'terminal' | 'ai'
 interface CellProps {
   leafId: string
   theme: ThemeMode
+  projectPath?: string
 }
 
 /**
@@ -16,7 +17,7 @@ interface CellProps {
  * - Hover reveals a mode switch button (terminal ↔ ai).
  * - Both components stay mounted (CSS display toggle) to preserve state.
  */
-export function Cell({ leafId, theme }: CellProps) {
+export function Cell({ leafId, theme, projectPath }: CellProps) {
   const [mode, setMode] = useState<CellMode>('terminal')
 
   const toggleMode = useCallback(() => {
@@ -30,7 +31,7 @@ export function Cell({ leafId, theme }: CellProps) {
         className="cell-layer"
         style={{ display: mode === 'terminal' ? 'flex' : 'none' }}
       >
-        <Terminal terminalId={`${leafId}_term`} theme={theme} />
+        <Terminal terminalId={`${leafId}_term`} theme={theme} projectPath={projectPath} />
       </div>
 
       {/* AI Chat layer */}

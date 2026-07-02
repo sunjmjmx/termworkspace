@@ -65,6 +65,7 @@ export type ThemeMode = 'dark' | 'light'
 
 export interface AppConfig {
   theme: ThemeMode
+  projectPath?: string
 }
 
 export const CONFIG_CHANNELS = {
@@ -116,13 +117,24 @@ export const FILETREE_CHANNELS = {
 export type FileTreeSendChannel = (typeof FILETREE_CHANNELS.send)[number]
 export type FileTreeOnChannel = (typeof FILETREE_CHANNELS.on)[number]
 
+// ── Project dialog channels ──────────────────────────────
+
+export const PROJECT_CHANNELS = {
+  send: ['project:cwd-set'] as const,
+  on: ['project:selected'] as const,
+} as const
+
+export type ProjectSendChannel = (typeof PROJECT_CHANNELS.send)[number]
+export type ProjectOnChannel = (typeof PROJECT_CHANNELS.on)[number]
+
 // ── Electron API type declarations ───────────────────────
 
 export interface ElectronAPI {
   platform: NodeJS.Platform
-  send: (channel: ValidSendChannel | ConfigSendChannel | LayoutSendChannel | ChatSendChannel | FileTreeSendChannel, ...args: unknown[]) => void
-  on: (channel: ValidOnChannel | ConfigOnChannel | LayoutOnChannel | ChatOnChannel | FileTreeOnChannel, callback: (...args: unknown[]) => void) => void
-  removeAllListeners: (channel: ValidOnChannel | ConfigOnChannel | LayoutOnChannel | ChatOnChannel | FileTreeOnChannel) => void
+  send: (channel: ValidSendChannel | ConfigSendChannel | LayoutSendChannel | ChatSendChannel | FileTreeSendChannel | ProjectSendChannel, ...args: unknown[]) => void
+  on: (channel: ValidOnChannel | ConfigOnChannel | LayoutOnChannel | ChatOnChannel | FileTreeOnChannel | ProjectOnChannel, callback: (...args: unknown[]) => void) => void
+  invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
+  removeAllListeners: (channel: ValidOnChannel | ConfigOnChannel | LayoutOnChannel | ChatOnChannel | FileTreeOnChannel | ProjectOnChannel) => void
 }
 
 declare global {

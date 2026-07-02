@@ -58,11 +58,12 @@ interface FileTreeProps {
   collapsed: boolean
   onToggleCollapse: () => void
   activeTerminalId: string
+  projectPath: string
 }
 
 // ── Component ─────────────────────────────────────────────
 
-export function FileTree({ theme, collapsed, onToggleCollapse, activeTerminalId }: FileTreeProps) {
+export function FileTree({ theme, collapsed, onToggleCollapse, activeTerminalId, projectPath }: FileTreeProps) {
   const [rootNodes, setRootNodes] = useState<TreeNode[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -76,7 +77,7 @@ export function FileTree({ theme, collapsed, onToggleCollapse, activeTerminalId 
     async function init() {
       setLoading(true)
       setError(null)
-      const entries = await readDir('/Users/sunjmj/termworkspace-v2')
+      const entries = await readDir(projectPath)
       if (cancelled) return
       const sorted = sortEntries(entries)
       const nodes = sorted.map(createNode)

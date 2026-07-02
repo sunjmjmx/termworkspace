@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'path'
 import os from 'os'
 import { spawn } from 'node-pty'
@@ -23,7 +23,7 @@ function loadConfig(): AppConfig {
     if (existsSync(configFile)) {
       const raw = readFileSync(configFile, 'utf-8')
       const parsed = JSON.parse(raw) as Partial<AppConfig>
-      return { theme: parsed.theme ?? 'dark' }
+      return { theme: parsed.theme ?? 'dark', projectPath: parsed.projectPath }
     }
   } catch {
     // ignore corrupt config, use defaults
@@ -148,11 +148,34 @@ function createWindow() {
   }
 }
 
+// ── Project folder selection ─────────────────────────────
+
+async function promptProjectFolder(): Promise<string | null> {
+  if (!mainWindow) return null
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory'],
+    title: 'Select Project Folder',
+    message: 'Choose a project folder to open in TermWorkspace',
+  })
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null
+  }
+
+  return result.filePaths[0]
+}
+
 // ── IPC Handlers ─────────────────────────────────────────
 
 function setupIPC() {
+  // dialog:select-project — open native folder picker
+  ipcMain.handle('dialog:select-project', async (): Promise<string | null> => {
+    return await promptProjectFolder()
+  })
+
   // terminal:create — spawn a new PTY process
-  ipcMain.on('terminal:create', (_event, terminalId: string) => {
+  ipcMain.on('terminal:create', (_event, terminalId: string, cwd?: string) => {
     const existing = ptyRegistry.get(terminalId)
     if (existing) {
       existing.kill()
@@ -160,11 +183,12 @@ function setupIPC() {
     }
 
     const shell = process.env.SHELL || '/bin/zsh'
+    const ptyCwd = cwd || process.env.HOME || os.homedir()
     const pty = spawn(shell, [], {
       name: 'xterm-256color',
       cols: 80,
       rows: 24,
-      cwd: process.env.HOME,
+      cwd: ptyCwd,
       env: { ...process.env } as { [key: string]: string },
     })
 
@@ -358,6 +382,16 @@ function setupIPC() {
       pty.write(`echo '${filePath.replace(/'/g, "'\\''")}'\n`)
     }
   })
+
+  // project:cwd-set — save project path to config and notify all windows
+  ipcMain.on('project:cwd-set', (_event, projectPath: string) => {
+    const config = loadConfig()
+    config.projectPath = projectPath
+    saveConfig(config)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('project:selected', projectPath)
+    }
+  })
 }
 
 // ── App lifecycle ─────────────────────────────────────────
@@ -365,6 +399,23 @@ function setupIPC() {
 app.whenReady().then(() => {
   setupIPC()
   createWindow()
+
+  // On ready-to-show, check if project path is set; if not, prompt the user
+  mainWindow?.on('ready-to-show', async () => {
+    const config = loadConfig()
+
+    if (!config.projectPath) {
+      const selectedPath = await promptProjectFolder()
+      if (selectedPath) {
+        config.projectPath = selectedPath
+        saveConfig(config)
+        mainWindow?.webContents.send('project:selected', selectedPath)
+      }
+    } else {
+      // Already have a project path — send it to the renderer
+      mainWindow?.webContents.send('project:selected', config.projectPath)
+    }
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
