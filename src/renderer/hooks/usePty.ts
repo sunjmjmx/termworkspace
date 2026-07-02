@@ -8,12 +8,12 @@ interface PtyCallbacks {
 /**
  * usePty — manages the IPC lifecycle for one terminal PTY.
  *
- * - Creates the PTY in main process on mount
+ * - Creates the PTY in main process on mount (optionally with cwd)
  * - Forwards keystrokes: write(data)
  * - Forwards resize: resize(cols, rows)
  * - Cleans up listeners on unmount
  */
-export function usePty(terminalId: string, callbacks: PtyCallbacks) {
+export function usePty(terminalId: string, callbacks: PtyCallbacks, cwd?: string) {
   const callbacksRef = useRef(callbacks)
   callbacksRef.current = callbacks
 
@@ -41,15 +41,19 @@ export function usePty(terminalId: string, callbacks: PtyCallbacks) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     api.on('terminal:exit', onExit as any)
 
-    // Spawn the PTY in main process
-    api.send('terminal:create', terminalId)
+    // Spawn the PTY in main process — pass cwd if provided
+    if (cwd) {
+      api.send('terminal:create', terminalId, cwd)
+    } else {
+      api.send('terminal:create', terminalId)
+    }
 
     return () => {
       api.send('terminal:kill', terminalId)
       api.removeAllListeners('terminal:output')
       api.removeAllListeners('terminal:exit')
     }
-  }, [terminalId, onData, onExit])
+  }, [terminalId, onData, onExit, cwd])
 
   // Write keystrokes to PTY
   const write = useCallback((data: string) => {

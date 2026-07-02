@@ -8,6 +8,7 @@ import '@xterm/xterm/css/xterm.css'
 interface TerminalProps {
   terminalId: string
   theme: ThemeMode
+  projectPath?: string
 }
 
 const DARK_THEME = {
@@ -64,7 +65,7 @@ const LIGHT_THEME = {
  * - Connects to the main-process PTY via the usePty IPC hook.
  * - Auto-sizes itself to fill its container (FitAddon).
  */
-export function Terminal({ terminalId, theme }: TerminalProps) {
+export function Terminal({ terminalId, theme, projectPath }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<XtermTerminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -77,7 +78,7 @@ export function Terminal({ terminalId, theme }: TerminalProps) {
     onExit: (_exitCode) => {
       termRef.current?.write('\r\n\x1b[31m[process exited]\x1b[0m')
     },
-  })
+  }, projectPath)
 
   // ── Bootstrap xterm.js ──────────────────────────────────
   useEffect(() => {

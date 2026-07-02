@@ -27,6 +27,8 @@ function App(): React.ReactElement {
 
   const [theme, setTheme] = useState<ThemeMode>('dark')
   const [fileTreeCollapsed, setFileTreeCollapsed] = useState(false)
+  const [projectPath, setProjectPath] = useState<string | null>(null)
+  const [showProjectPicker, setShowProjectPicker] = useState(false)
 
   const toggleFileTree = useCallback(() => {
     setFileTreeCollapsed((prev) => !prev)
@@ -54,6 +56,23 @@ function App(): React.ReactElement {
 
     return () => {
       api.removeAllListeners('config:loaded')
+    }
+  }, [])
+
+  // ── Handle project path from main process ────────────
+  useEffect(() => {
+    const api = window.electronAPI
+    if (!api) return
+
+    api.on('project:selected', (raw: unknown) => {
+      const path = raw as string
+      if (path) {
+        setProjectPath(path)
+      }
+    })
+
+    return () => {
+      api.removeAllListeners('project:selected')
     }
   }, [])
 
@@ -105,6 +124,55 @@ function App(): React.ReactElement {
     })
   }, [])
 
+  // ── Open project folder picker ────────────────────────
+  const openProjectPicker = useCallback(async () => {
+    setShowProjectPicker(true)
+    const api = window.electronAPI
+    if (!api) return
+
+    const result = await api.invoke('dialog:select-project')
+    const selectedPath = result as string | null
+    if (selectedPath) {
+      setProjectPath(selectedPath)
+      // Persist to config and notify all windows
+      api.send('project:cwd-set', selectedPath)
+    }
+    setShowProjectPicker(false)
+  }, [])
+
+  // ── Project picker overlay (before project is selected) ──
+  if (!projectPath) {
+    return (
+      <div className="app">
+        <TabBar
+          tabs={tabs}
+          activeTabId={activeTabId}
+          onSwitch={switchTab}
+          onClose={closeTab}
+          onCreate={createTab}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
+        <div className="project-picker-overlay">
+          <div className="project-picker-card">
+            <div className="project-picker-icon">📂</div>
+            <h2 className="project-picker-title">TermWorkspace</h2>
+            <p className="project-picker-subtitle">Select a project folder to get started</p>
+            <button
+              className="project-picker-btn"
+              onClick={openProjectPicker}
+              disabled={showProjectPicker}
+            >
+              {showProjectPicker ? 'Opening...' : 'Open Project Folder'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const currentConfig: AppConfig = { theme, projectPath }
+
   return (
     <div className="app">
       <TabBar
@@ -122,12 +190,14 @@ function App(): React.ReactElement {
           collapsed={fileTreeCollapsed}
           onToggleCollapse={toggleFileTree}
           activeTerminalId={activeTerminalId}
+          projectPath={projectPath}
         />
         <SplitPane
           key={activeTabId}
           tree={activeTab.tree}
           onTreeChange={setActiveTree}
           theme={theme}
+          projectPath={projectPath}
         />
       </div>
     </div>

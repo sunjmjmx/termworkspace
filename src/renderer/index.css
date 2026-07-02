@@ -663,3 +663,99 @@ body {
 .filetree-error {
   color: var(--accent-red);
 }
+
+/* ── Project picker overlay ─────────────────────────── */
+
+.project-picker-overlay {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-base);
+}
+
+.project-picker-card {
+  text-align: center;
+  padding: 48px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  max-width: 400px;
+}
+
+.project-picker-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.project-picker-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.project-picker-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.project-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  background: var(--accent-blue);
+  color: var(--send-btn-text);
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.project-picker-btn:hover {
+  background: var(--send-btn-hover);
+}
+
+.project-picker-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Tab bar project folder button ─────────────────── */
+
+.tab-project-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  height: 24px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-right: 6px;
+  -webkit-app-region: no-drag;
+  transition: background 0.1s, color 0.1s;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-project-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+
+.tab-project-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

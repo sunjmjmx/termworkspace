@@ -6,6 +6,7 @@ const validSendChannels = [
   'config:load', 'config:save',
   'layout:load', 'layout:save',
   'filetree:readdir', 'filetree:open-file',
+  'project:cwd-set',
 ]
 
 const validOnChannels = [
@@ -14,6 +15,7 @@ const validOnChannels = [
   'config:loaded',
   'layout:loaded',
   'filetree:readdir-result',
+  'project:selected',
 ]
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -29,6 +31,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     if (validOnChannels.includes(channel)) {
       ipcRenderer.on(channel, (_event, ...args) => callback(...args))
     }
+  },
+
+  invoke: (channel: string, ...args: unknown[]) => {
+    return ipcRenderer.invoke(channel, ...args)
   },
 
   removeAllListeners: (channel: string) => {
