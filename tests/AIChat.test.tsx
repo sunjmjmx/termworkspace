@@ -6,17 +6,24 @@ import { AIChat } from '../src/renderer/components/AIChat'
 describe('AIChat', () => {
   const mockSend = vi.fn()
   const mockOn = vi.fn()
-  const mockRemoveAll = vi.fn()
+  // Track cleanup functions returned by mock on() so unmount test can verify them
+  const mockOnCleanups: Array<ReturnType<typeof vi.fn>> = []
+  const mockInvoke = vi.fn().mockResolvedValue([])
   // Registry to simulate IPC event subscription — allows triggering registered callbacks
   const listenerRegistry = new Map<string, (...args: unknown[]) => void>()
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockOnCleanups.length = 0
     listenerRegistry.clear()
 
     // Track registered listeners so tests can trigger them
-    mockOn.mockImplementation((channel: string, callback: (...args: unknown[]) => void) => {
-      listenerRegistry.set(channel, callback)
+    // Also return a cleanup spy so unmount test can verify unsubscription
+    mockOn.mockImplementation((_channel: string, callback: (...args: unknown[]) => void) => {
+      listenerRegistry.set(_channel, callback)
+      const cleanup = vi.fn()
+      mockOnCleanups.push(cleanup)
+      return cleanup
     })
 
     // Mock window.electronAPI
@@ -25,8 +32,7 @@ describe('AIChat', () => {
         platform: 'darwin',
         send: mockSend,
         on: mockOn,
-        invoke: vi.fn().mockResolvedValue([]),
-        removeAllListeners: mockRemoveAll,
+        invoke: mockInvoke,
       },
       writable: true,
       configurable: true,
@@ -54,13 +60,17 @@ describe('AIChat', () => {
     expect(mockSend).toHaveBeenCalledWith('chat:load', 'test-chat-1')
   })
 
-  it('should remove IPC listeners on unmount', () => {
+  it('should call cleanup functions returned by on() on unmount', () => {
     const { unmount } = render(<AIChat chatId="test-chat-1" />)
+    // After mount: 3 on() calls → 3 cleanup functions registered
+    expect(mockOnCleanups.length).toBe(3)
+
     unmount()
 
-    expect(mockRemoveAll).toHaveBeenCalledWith('chat:loaded')
-    expect(mockRemoveAll).toHaveBeenCalledWith('ai:chunk')
-    expect(mockRemoveAll).toHaveBeenCalledWith('ai:done')
+    // All 3 cleanup functions should have been called
+    mockOnCleanups.forEach((cleanup, i) => {
+      expect(cleanup).toHaveBeenCalledOnce()
+    })
   })
 
   it('should send message on Enter key', () => {
