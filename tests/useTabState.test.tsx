@@ -70,7 +70,7 @@ describe('useTabState', () => {
       result.current.closeTab(onlyTabId)
     })
 
-    // Last tab is removed, tabs become empty
+    // Last tab is removed, tabs is now empty
     expect(result.current.tabs).toHaveLength(0)
   })
 
@@ -169,5 +169,80 @@ describe('useTabState', () => {
     })
 
     expect(result.current.tabs[0].title).toBe('My Custom Tab')
+  })
+
+  // ── New tests for B2 fix: PTY cleanup + close behavior ──
+
+  it('closeTab on non-active tab should keep activeTabId unchanged', () => {
+    const { result } = renderHook(() => useTabState())
+
+    act(() => { result.current.createTab() })
+    act(() => { result.current.createTab() })
+
+    // tabs: [tab0, tab1, tab2], active = tab2 (last created)
+    const tab0Id = result.current.tabs[0].id
+    // Switch to tab0
+    act(() => { result.current.switchTab(tab0Id) })
+    expect(result.current.activeTabId).toBe(tab0Id)
+
+    // Close tab1 (non-active)
+    const tab1Id = result.current.tabs[1].id
+    act(() => { result.current.closeTab(tab1Id) })
+
+    // activeTabId should still be tab0, tabs should be [tab0, tab2]
+    expect(result.current.tabs).toHaveLength(2)
+    expect(result.current.activeTabId).toBe(tab0Id)
+    expect(result.current.tabs[0].id).toBe(tab0Id)
+  })
+
+  it('closeTab should call onCleanupTab with correct terminal IDs', () => {
+    const onCleanupTab = vi.fn()
+    const { result } = renderHook(() => useTabState({ onCleanupTab }))
+
+    act(() => { result.current.createTab() })
+    const tab1Id = result.current.tabs[1].id
+
+    act(() => { result.current.closeTab(tab1Id) })
+
+    // onCleanupTab should have been called with leafId_term for the closed tab's tree
+    expect(onCleanupTab).toHaveBeenCalledTimes(1)
+    const terminalIds = onCleanupTab.mock.calls[0][0]
+    expect(Array.isArray(terminalIds)).toBe(true)
+    expect(terminalIds.length).toBeGreaterThanOrEqual(1)
+    for (const id of terminalIds) {
+      expect(id).toMatch(/_term$/)
+    }
+  })
+
+  it('closeTab should call onCleanupTab when closing last tab', () => {
+    const onCleanupTab = vi.fn()
+    const { result } = renderHook(() => useTabState({ onCleanupTab }))
+
+    const onlyTabId = result.current.tabs[0].id
+    act(() => { result.current.closeTab(onlyTabId) })
+
+    // Last tab is closed — cleanup IS called, tabs become empty
+    expect(result.current.tabs).toHaveLength(0)
+    expect(onCleanupTab).toHaveBeenCalledTimes(1)
+  })
+
+  it('closeTab of middle tab should switch active to left neighbor', () => {
+    const { result } = renderHook(() => useTabState())
+
+    act(() => { result.current.createTab() })
+    act(() => { result.current.createTab() })
+    act(() => { result.current.createTab() })
+
+    // tabs: [tab0, tab1, tab2, tab3], active = tab3 (last created)
+    // Switch to tab1
+    act(() => { result.current.switchTab(result.current.tabs[1].id) })
+    const tab1Id = result.current.activeTabId
+
+    // Close tab1 (the active tab)
+    act(() => { result.current.closeTab(tab1Id) })
+
+    // Should switch to tab0 (left neighbor)
+    expect(result.current.tabs).toHaveLength(3)
+    expect(result.current.activeTabId).toBe(result.current.tabs[1].id)
   })
 })

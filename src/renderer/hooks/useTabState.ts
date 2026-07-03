@@ -55,6 +55,9 @@ export function useTabState(options?: TabStateOptions) {
   // Ref to pass close-tab context from setTabs updater to useEffect
   const closeInfoRef = useRef<{ wasActive: boolean; index: number } | null>(null)
 
+  const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0]
+
+  // Called by SplitPane when the tree changes (user splits a pane)
   const setActiveTree = useCallback((tree: SplitNode) => {
     setTabs((prev) =>
       prev.map((t) => (t.id === activeTabId ? { ...t, tree } : t)),
@@ -89,18 +92,19 @@ export function useTabState(options?: TabStateOptions) {
       closeInfoRef.current = { wasActive: id === activeTabId, index }
       return prev.filter((t) => t.id !== id)
     })
-  }, [activeTabId, options])
+  }, [activeTabId, options?.onCleanupTab])
 
   // If active tab was removed (via closeTab), switch to nearest neighbor
   useEffect(() => {
     const info = closeInfoRef.current
+    closeInfoRef.current = null
     if (info && info.wasActive && tabs.length > 0) {
       const newIndex = Math.min(info.index, tabs.length - 1)
       setActiveTabId(tabs[newIndex].id)
     } else if (tabs.length > 0 && !tabs.some((t) => t.id === activeTabId)) {
+      // Fallback: active tab was removed externally (edge case)
       setActiveTabId(tabs[0].id)
     }
-    closeInfoRef.current = null
   }, [tabs, activeTabId])
 
   const switchTab = useCallback((id: string) => {
@@ -113,13 +117,27 @@ export function useTabState(options?: TabStateOptions) {
     )
   }, [])
 
+  /**
+   * restoreTabs — replace entire tab state from persisted layout.
+   * Resets the tab counter so new tabs don't collide with restored IDs.
+   */
+  const restoreTabs = useCallback((newTabs: Tab[], activeId: string) => {
+    // Reset counters to avoid collisions with restored IDs
+    nextTabId = 0
+    nextLeafId = 0
+    setTabs(newTabs)
+    setActiveTabId(activeId)
+  }, [])
+
   return {
     tabs,
+    activeTab,
     activeTabId,
+    setActiveTree,
     createTab,
     closeTab,
     switchTab,
-    setActiveTree,
     renameTab,
+    restoreTabs,
   }
 }
