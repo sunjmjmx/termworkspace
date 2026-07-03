@@ -209,7 +209,7 @@ function setupIPC() {
   })
 
   // terminal:create — spawn a new PTY process
-  ipcMain.on('terminal:create', (_event, terminalId: string, cwd?: string) => {
+  ipcMain.on('terminal:create', async (_event, terminalId: string, cwd?: string) => {
     // Kill existing PTY for this terminal ID
     const existing = ptyRegistry.get(terminalId)
     if (existing) {
@@ -217,55 +217,64 @@ function setupIPC() {
       ptyRegistry.delete(terminalId)
     }
 
-    // Resolve shell path: fall back to /bin/zsh (macOS default)
-    const shell = process.env.SHELL && existsSync(process.env.SHELL)
-      ? process.env.SHELL
-      : '/bin/zsh'
-
-    // Verify shell exists
-    if (!existsSync(shell)) {
-      console.error(`[termworkspace] Shell not found: ${shell}`)
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('terminal:error', terminalId, `Shell not found: ${shell}`)
+    // ── Diagnostic output ─────────────────────────────
+    const diagLines: string[] = []
+    const emit = (msg: string) => {
+      diagLines.push(msg)
+      console.log(`[termworkspace] ${msg}`)
+    }
+    const flushDiag = () => {
+      if (mainWindow && !mainWindow.isDestroyed() && diagLines.length > 0) {
+        mainWindow.webContents.send('terminal:output', terminalId, diagLines.join('\r\n') + '\r\n')
       }
-      return
-    }
-
-    // Resolve cwd: fallback to HOME, verify it exists
-    let ptyCwd: string
-    if (cwd && existsSync(cwd)) {
-      try { ptyCwd = realpathSync(cwd) } catch { ptyCwd = cwd }
-    } else {
-      ptyCwd = os.homedir()
-    }
-
-    // Build a safe environment with explicit PATH fallback
-    const safeEnv: Record<string, string> = {}
-    if (process.env) {
-      for (const [k, v] of Object.entries(process.env)) {
-        if (typeof v === 'string') safeEnv[k] = v
-      }
-    }
-    // Ensure PATH has standard locations
-    const currentPath = safeEnv['PATH'] || ''
-    const stdPaths = ['/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin',
-      '/opt/homebrew/bin', '/opt/homebrew/sbin',
-      `${os.homedir()}/.local/bin`].join(':')
-    if (!currentPath.includes('/usr/bin')) {
-      safeEnv['PATH'] = `${currentPath}:${stdPaths}`
     }
 
     try {
-      // Resolve real paths to avoid symlink issues
-      const resolvedShell = realpathSync(shell)
-      const resolvedCwd = ptyCwd
+      // Resolve shell path: fall back to /bin/sh (more portable than /bin/zsh on locked-down systems)
+      const shell = process.env.SHELL && existsSync(process.env.SHELL)
+        ? realpathSync(process.env.SHELL)
+        : '/bin/sh'
 
-      console.log(`[termworkspace] Creating PTY: shell=${resolvedShell} cwd=${resolvedCwd}`)
-      const pty = spawn(resolvedShell, ['-l'], {  // -l = login shell
+      emit(`Shell=${shell} exists=${existsSync(shell)}`)
+      emit(`Node=${process.version} Electron=${process.versions?.electron || '?'}`)
+      emit(`Arch=${process.arch} Platform=${process.platform}`)
+      emit(`PATH=${process.env.PATH || '(empty)'}`)
+      emit(`HOME=${process.env.HOME || '(empty)'}`)
+
+      // Resolve cwd
+      let ptyCwd = os.homedir()
+      if (cwd && existsSync(cwd)) {
+        try { ptyCwd = realpathSync(cwd) } catch { ptyCwd = cwd }
+      }
+
+      // Build minimum environment
+      const safeEnv: Record<string, string> = {
+        TERM: 'xterm-256color',
+        HOME: os.homedir(),
+        PATH: '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/opt/homebrew/sbin',
+        USER: process.env.USER || 'user',
+        LOGNAME: process.env.LOGNAME || 'user',
+        SHELL: shell,
+      }
+      // Copy over any additional safe vars from process.env
+      for (const k of ['LANG', 'LC_ALL', 'LC_CTYPE', 'EDITOR', 'COLORTERM', 'XDG_CONFIG_HOME']) {
+        const v = process.env[k]
+        if (v && typeof v === 'string') safeEnv[k] = v
+      }
+
+      emit(`Creating PTY: ${shell}`)
+
+      // ── Attempt 1: node-pty spawn ───────────────────
+      const args: string[] = []
+      // Use basename with leading '-' for login shell convention
+      const basename = shell.split('/').pop() || 'sh'
+      args.push('-' + basename)
+
+      const pty = spawn(shell, args, {
         name: 'xterm-256color',
         cols: 80,
         rows: 24,
-        cwd: resolvedCwd,
+        cwd: ptyCwd,
         env: safeEnv,
       })
 
@@ -283,12 +292,65 @@ function setupIPC() {
         }
         ptyRegistry.delete(terminalId)
       })
+
+      emit('PTY created successfully')
+      flushDiag()
     } catch (err: any) {
-      console.error(`[termworkspace] PTY spawn failed:`, err.message)
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('terminal:error', terminalId,
-          `Failed to create terminal: ${err.message}`)
+      emit(`PTY spawn FAILED: ${err.message}`)
+      emit(`Full error: ${err.stack?.split('\n').slice(0, 3).join(' | ')}`)
+      flushDiag()
+
+      // ── Attempt 2: Fallback to child_process.spawn ──
+      try {
+        emit('Falling back to child_process.spawn...')
+        const { spawn: cpSpawn } = await import('child_process')
+
+        const shell = process.env.SHELL && existsSync(process.env.SHELL)
+          ? realpathSync(process.env.SHELL)
+          : '/bin/sh'
+
+        const cp = cpSpawn(shell, [], {
+          cwd: os.homedir(),
+          env: {
+            TERM: 'xterm-256color',
+            HOME: os.homedir(),
+            PATH: '/usr/local/bin:/usr/bin:/bin',
+            SHELL: shell,
+          },
+        })
+
+        cp.stdout?.on('data', (data: Buffer) => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('terminal:output', terminalId, data.toString())
+          }
+        })
+        cp.stderr?.on('data', (data: Buffer) => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('terminal:output', terminalId, data.toString())
+          }
+        })
+        cp.on('exit', (exitCode) => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('terminal:exit', terminalId, exitCode ?? -1)
+          }
+          ptyRegistry.delete(terminalId)
+        })
+
+        // Override registry entry with fallback process
+        ptyRegistry.set(terminalId, {
+          write: (data: string) => cp.stdin?.write(data),
+          kill: () => cp.kill(),
+          resize: () => {},  // no-op without PTY
+          onData: undefined,
+          onExit: undefined,
+        } as any)
+
+        emit('Fallback spawn succeeded (no PTY — limited features)')
+      } catch (fallbackErr: any) {
+        emit(`Fallback also FAILED: ${fallbackErr.message}`)
       }
+
+      flushDiag()
     }
   })
 
