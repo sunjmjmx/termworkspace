@@ -5,12 +5,13 @@ import { Cell } from '../src/renderer/components/Cell'
 
 describe('Cell', () => {
   beforeEach(() => {
-    // Mock electronAPI (required by AIChat within Cell)
+    // Mock window.electronAPI
     Object.defineProperty(window, 'electronAPI', {
       value: {
         platform: 'darwin',
         send: vi.fn(),
         on: vi.fn(),
+        invoke: vi.fn().mockResolvedValue([]),
         removeAllListeners: vi.fn(),
       },
       writable: true,

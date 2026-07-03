@@ -5,6 +5,7 @@ import { spawn } from 'node-pty'
 import https from 'https'
 import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync, statSync, realpathSync } from 'fs'
 import type { AiChatRequest, AppConfig, LayoutData, FileTreeEntry, AiChatMessage } from '../types'
+import { discoverProviders, getActiveProvider } from './ai-config'
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
@@ -482,13 +483,34 @@ else:
     }
   })
 
+  // ai:list-providers — return all discovered providers
+  ipcMain.handle('ai:list-providers', () => {
+    return discoverProviders()
+  })
+
+  // ai:get-active — return currently active provider (or null if none configured)
+  ipcMain.handle('ai:get-active', () => {
+    const config = loadConfig()
+    const result = getActiveProvider(config.aiProvider)
+    return result ? result.provider : null
+  })
+
+  // ai:set-active — persist selected provider ID to AppConfig
+  ipcMain.handle('ai:set-active', (_event, providerId: string) => {
+    const config = loadConfig()
+    config.aiProvider = providerId
+    saveConfig(config)
+    return { success: true }
+  })
+
   // ai:chat — send prompt to LLM API with streaming response
   ipcMain.on('ai:chat', (_event, request: AiChatRequest) => {
     const { terminalId, prompt, model: modelOverride, systemPrompt } = request
 
-    // Load AI config
-    const config = loadAiConfig()
-    if (!config) {
+    // Load AppConfig and discover active provider
+    const config = loadConfig()
+    const activeResult = getActiveProvider(config.aiProvider)
+    if (!activeResult || !activeResult.provider.configured) {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('ai:chunk', terminalId, '\n❌ No API key found. Set KIMI_API_KEY or DEEPSEEK_API_KEY in .env')
         mainWindow.webContents.send('ai:done', terminalId)
@@ -496,7 +518,7 @@ else:
       return
     }
 
-    const model = modelOverride ?? config.model
+    const model = modelOverride ?? activeResult.config.model
 
     // Build request body (OpenAI-compatible format)
     const messages: { role: string; content: string }[] = []
@@ -512,7 +534,7 @@ else:
       max_tokens: 4096,
     })
 
-    const url = new URL(`${config.baseUrl}/chat/completions`)
+    const url = new URL(`${activeResult.config.baseUrl}/chat/completions`)
 
     const options: https.RequestOptions = {
       hostname: url.hostname,
@@ -521,7 +543,7 @@ else:
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`,
+        'Authorization': `Bearer ${activeResult.config.apiKey}`,
         'Content-Length': Buffer.byteLength(body).toString(),
       },
     }

@@ -8,6 +8,7 @@ export const TERMINAL_CHANNELS = {
 export const AI_CHANNELS = {
   send: ['ai:chat'] as const,
   on: ['ai:chunk', 'ai:done'] as const,
+  invoke: ['ai:list-providers', 'ai:get-active', 'ai:set-active'] as const,
 } as const
 
 export type TerminalSendChannel = (typeof TERMINAL_CHANNELS.send)[number]
@@ -36,6 +37,17 @@ export interface SplitBranch {
 }
 
 export type SplitNode = SplitLeaf | SplitBranch
+
+// ── AI Provider types ───────────────────────────────────
+
+export interface AiProvider {
+  id: string
+  name: string
+  model: string
+  baseUrl: string
+  apiKey: string
+  configured: boolean
+}
 
 // ── AI Chat types ───────────────────────────────────────
 
@@ -66,6 +78,7 @@ export type ThemeMode = 'dark' | 'light'
 export interface AppConfig {
   theme: ThemeMode
   projectPath?: string
+  aiProvider?: string
 }
 
 export const CONFIG_CHANNELS = {

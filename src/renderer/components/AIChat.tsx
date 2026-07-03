@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import type { AiChatMessage } from '../../types'
+import type { AiChatMessage, AiProvider } from '../../types'
 
 interface AIChatProps {
   /** Unique ID for this AI chat instance — used to correlate IPC events */
@@ -19,11 +19,15 @@ interface AIChatProps {
  * - Messages persisted to ~/.termworkspace/chats/<chatId>.json.
  * - On mount: loads persisted history; on ai:done: saves.
  * - Message bubbles with Catppuccin Mocha palette.
+ * - Model selector dropdown for switching between AI providers.
  */
-export function AIChat({ chatId, model, systemPrompt }: AIChatProps) {
+export function AIChat({ chatId, model: propModel, systemPrompt }: AIChatProps) {
   const [messages, setMessages] = useState<AiChatMessage[]>([])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
+  const [providers, setProviders] = useState<AiProvider[]>([])
+  const [selectedProvider, setSelectedProvider] = useState<AiProvider | null>(null)
+  const [loadingProviders, setLoadingProviders] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   // Ref to track latest messages for use in event callbacks without re-subscribing
@@ -96,6 +100,45 @@ export function AIChat({ chatId, model, systemPrompt }: AIChatProps) {
     }
   }, [chatId])
 
+  // Fetch providers and active provider on mount
+  useEffect(() => {
+    const api = window.electronAPI
+
+    async function loadProviders() {
+      try {
+        const providersList = (await api.invoke('ai:list-providers')) as AiProvider[]
+        const active = (await api.invoke('ai:get-active')) as AiProvider | null
+        setProviders(providersList)
+
+        // Set selected: active provider, or first configured, or just first
+        const activeId = active?.id
+        const found = activeId
+          ? providersList.find((p) => p.id === activeId)
+          : providersList.find((p) => p.configured)
+        setSelectedProvider(found ?? providersList[0] ?? null)
+      } catch (err) {
+        console.error('[AIChat] Failed to load providers:', err)
+      } finally {
+        setLoadingProviders(false)
+      }
+    }
+
+    loadProviders()
+  }, [])
+
+  // Handle provider/model selection change
+  const handleProviderChange = useCallback(async (providerId: string) => {
+    const found = providers.find((p) => p.id === providerId)
+    if (found) {
+      setSelectedProvider(found)
+      try {
+        await window.electronAPI.invoke('ai:set-active', providerId)
+      } catch (err) {
+        console.error('[AIChat] Failed to set active provider:', err)
+      }
+    }
+  }, [providers])
+
   const sendMessage = useCallback(() => {
     const trimmed = input.trim()
     if (!trimmed || isStreaming) return
@@ -110,6 +153,9 @@ export function AIChat({ chatId, model, systemPrompt }: AIChatProps) {
     const placeholder: AiChatMessage = { role: 'assistant', content: '' }
     setMessages((prev) => [...prev, placeholder])
 
+    // Use the model from the selected provider, with propModel as override
+    const model = propModel ?? selectedProvider?.model
+
     // Send IPC to main process
     window.electronAPI.send('ai:chat', {
       terminalId: chatId,
@@ -117,7 +163,7 @@ export function AIChat({ chatId, model, systemPrompt }: AIChatProps) {
       model,
       systemPrompt,
     })
-  }, [input, isStreaming, chatId, model, systemPrompt])
+  }, [input, isStreaming, chatId, propModel, selectedProvider, systemPrompt])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -131,6 +177,24 @@ export function AIChat({ chatId, model, systemPrompt }: AIChatProps) {
 
   return (
     <div className="ai-chat">
+      {/* Model selector */}
+      {!loadingProviders && providers.length > 1 && (
+        <div className="ai-chat-model-selector">
+          <select
+            value={selectedProvider?.id ?? ''}
+            onChange={(e) => handleProviderChange(e.target.value)}
+            disabled={isStreaming}
+            className="ai-chat-model-select"
+          >
+            {providers.map((p) => (
+              <option key={p.id} value={p.id} disabled={!p.configured}>
+                {p.name} ({p.model}){!p.configured ? ' — no API key' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Message list */}
       <div className="ai-chat-messages">
         {messages.length === 0 && (

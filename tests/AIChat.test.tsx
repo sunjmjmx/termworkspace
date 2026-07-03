@@ -25,6 +25,7 @@ describe('AIChat', () => {
         platform: 'darwin',
         send: mockSend,
         on: mockOn,
+        invoke: vi.fn().mockResolvedValue([]),
         removeAllListeners: mockRemoveAll,
       },
       writable: true,
