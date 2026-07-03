@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'path'
 import os from 'os'
-import { spawn } from 'node-pty'
+import { createPTY, PtyProcess } from './platform'
 import https from 'https'
 import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync, statSync, realpathSync } from 'fs'
 import type { AiChatRequest, AppConfig, LayoutData, FileTreeEntry, AiChatMessage } from '../types'
@@ -12,7 +12,7 @@ const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 let mainWindow: BrowserWindow | null = null
 
 // PTY registry — maps terminal IDs to their pty processes
-const ptyRegistry = new Map<string, ReturnType<typeof spawn>>()
+const ptyRegistry = new Map<string, PtyProcess>()
 
 // ── Config persistence ────────────────────────────────────
 
@@ -209,8 +209,8 @@ function setupIPC() {
     return result
   })
 
-  // terminal:create — spawn a new PTY process
-  ipcMain.on('terminal:create', async (_event, terminalId: string, cwd?: string) => {
+  // terminal:create — spawn a new PTY process (delegated to platform.ts createPTY)
+  ipcMain.on('terminal:create', (_event, terminalId: string, cwd?: string) => {
     // Kill existing PTY for this terminal ID
     const existing = ptyRegistry.get(terminalId)
     if (existing) {
@@ -218,244 +218,24 @@ function setupIPC() {
       ptyRegistry.delete(terminalId)
     }
 
-    // ── Diagnostic output ─────────────────────────────
-    const diagLines: string[] = []
-    const emit = (msg: string) => {
-      diagLines.push(msg)
-      console.log(`[termworkspace] ${msg}`)
-    }
-    const flushDiag = () => {
-      if (mainWindow && !mainWindow.isDestroyed() && diagLines.length > 0) {
-        mainWindow.webContents.send('terminal:output', terminalId, diagLines.join('\r\n') + '\r\n')
-      }
-    }
-
-    try {
-      // Resolve shell path: fall back to /bin/sh (more portable than /bin/zsh on locked-down systems)
-      const shell = process.env.SHELL && existsSync(process.env.SHELL)
-        ? realpathSync(process.env.SHELL)
-        : '/bin/sh'
-
-      emit(`Shell=${shell} exists=${existsSync(shell)}`)
-      emit(`Node=${process.version} Electron=${process.versions?.electron || '?'}`)
-      emit(`Arch=${process.arch} Platform=${process.platform}`)
-      emit(`PATH=${process.env.PATH || '(empty)'}`)
-      emit(`HOME=${process.env.HOME || '(empty)'}`)
-
-      // Resolve cwd
-      let ptyCwd = os.homedir()
-      if (cwd && existsSync(cwd)) {
-        try { ptyCwd = realpathSync(cwd) } catch { ptyCwd = cwd }
-      }
-
-      // Build minimum environment
-      const safeEnv: Record<string, string> = {
-        TERM: 'xterm-256color',
-        HOME: os.homedir(),
-        PATH: '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/opt/homebrew/sbin',
-        USER: process.env.USER || 'user',
-        LOGNAME: process.env.LOGNAME || 'user',
-        SHELL: shell,
-      }
-      // Copy over any additional safe vars from process.env
-      for (const k of ['LANG', 'LC_ALL', 'LC_CTYPE', 'EDITOR', 'COLORTERM', 'XDG_CONFIG_HOME']) {
-        const v = process.env[k]
-        if (v && typeof v === 'string') safeEnv[k] = v
-      }
-
-      emit(`Creating PTY: ${shell}`)
-
-      // ── Attempt 1: node-pty spawn ───────────────────
-      const args: string[] = []
-      // Use basename with leading '-' for login shell convention
-      const basename = shell.split('/').pop() || 'sh'
-      args.push('-' + basename)
-
-      const pty = spawn(shell, args, {
-        name: 'xterm-256color',
-        cols: 80,
-        rows: 24,
-        cwd: ptyCwd,
-        env: safeEnv,
-      })
-
-      ptyRegistry.set(terminalId, pty)
-
-      pty.onData((data: string) => {
+    const pty = createPTY(terminalId, cwd ?? os.homedir(), {
+      onData: (data: string) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('terminal:output', terminalId, data)
         }
-      })
-
-      pty.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
+      },
+      onExit: (code, _signal) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('terminal:exit', terminalId, exitCode, signal)
+          mainWindow.webContents.send('terminal:exit', terminalId, code ?? -1)
         }
         ptyRegistry.delete(terminalId)
-      })
+      },
+      onError: (err) => {
+        console.error(`[termworkspace] PTY error for ${terminalId}:`, err.message)
+      },
+    })
 
-      emit('PTY created successfully')
-      flushDiag()
-    } catch (err: any) {
-      emit(`PTY spawn FAILED: ${err.message}`)
-      emit(`Full error: ${err.stack?.split('\n').slice(0, 3).join(' | ')}`)
-      flushDiag()
-
-      // ── Attempt 2: Python PTY bridge (macOS built-in) ──
-      try {
-        emit('Falling back to Python PTY bridge...')
-        const { spawn: cpSpawn } = await import('child_process')
-
-        const shell = process.env.SHELL && existsSync(process.env.SHELL)
-          ? realpathSync(process.env.SHELL)
-          : '/bin/sh'
-
-        // Python script that creates a real PTY via pty.fork()
-        // Available on all macOS systems via /usr/bin/python3
-        const ptyBridgePy = `
-import sys, os, pty, select, signal, errno
-
-shell = sys.argv[1]
-
-pid, fd = pty.fork()
-if pid == 0:
-    # Child: exec shell as login shell
-    basename = os.path.basename(shell)
-    os.execvp(shell, ['-' + basename])
-    sys.exit(1)
-else:
-    # Parent: bridge fd <-> stdin/stdout
-    try:
-        while True:
-            r, w, x = select.select([sys.stdin, fd], [], [])
-            if sys.stdin in r:
-                try:
-                    data = os.read(sys.stdin.fileno(), 65536)
-                except OSError as e:
-                    if e.errno != errno.EINTR: break
-                    continue
-                if not data: break
-                os.write(fd, data)
-            if fd in r:
-                try:
-                    data = os.read(fd, 65536)
-                except OSError as e:
-                    if e.errno != errno.EINTR: break
-                    continue
-                if not data: break
-                os.write(sys.stdout.fileno(), data)
-                sys.stdout.flush()
-    except (EOFError, KeyboardInterrupt):
-        pass
-    finally:
-        try: os.close(fd)
-        except: pass
-        try: os.waitpid(pid, 0)
-        except: pass
-`
-
-        const cp = cpSpawn('/usr/bin/python3', ['-c', ptyBridgePy, shell], {
-          cwd: os.homedir(),
-          stdio: ['pipe', 'pipe', 'pipe'],
-          env: {
-            TERM: 'xterm-256color',
-            HOME: os.homedir(),
-            PATH: '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/opt/homebrew/sbin',
-            SHELL: shell,
-            USER: process.env.USER || 'user',
-            LOGNAME: process.env.LOGNAME || 'user',
-          },
-        })
-
-        cp.stdout?.on('data', (data: Buffer) => {
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('terminal:output', terminalId, data.toString())
-          }
-        })
-        cp.stderr?.on('data', (data: Buffer) => {
-          // Python warnings/errors — display in terminal
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('terminal:output', terminalId, `\x1b[33m${data.toString()}\x1b[0m`)
-          }
-        })
-        cp.on('error', (err: Error) => {
-          emit(`Python PTY error: ${err.message}`)
-          flushDiag()
-        })
-        cp.on('exit', (exitCode) => {
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('terminal:exit', terminalId, exitCode ?? -1)
-          }
-          ptyRegistry.delete(terminalId)
-        })
-
-        ptyRegistry.set(terminalId, {
-          write: (data: string) => cp.stdin?.write(data),
-          kill: () => cp.kill(),
-          resize: (_cols?: number, _rows?: number) => {
-            // Python PTY doesn't support dynamic resize
-          },
-        } as any)
-
-        emit('Python PTY bridge succeeded')
-      } catch (scriptErr: any) {
-        emit(`Python PTY bridge FAILED: ${scriptErr.message}`)
-
-        // ── Attempt 3: Raw child_process.spawn ──
-        try {
-          emit('Falling back to child_process.spawn (no PTY)...')
-          const { spawn: cpSpawn } = await import('child_process')
-
-          const shell = process.env.SHELL && existsSync(process.env.SHELL)
-            ? realpathSync(process.env.SHELL)
-            : '/bin/sh'
-
-          const cp = cpSpawn(shell, [], {
-            cwd: os.homedir(),
-            stdio: ['pipe', 'pipe', 'pipe'],
-            env: {
-              TERM: 'xterm-256color',
-              HOME: os.homedir(),
-              PATH: '/usr/local/bin:/usr/bin:/bin',
-              SHELL: shell,
-            },
-          })
-
-          cp.stdout?.on('data', (data: Buffer) => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('terminal:output', terminalId, data.toString())
-            }
-          })
-          cp.stderr?.on('data', (data: Buffer) => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('terminal:output', terminalId, data.toString())
-            }
-          })
-          cp.on('error', (err: Error) => {
-            emit(`spawn error: ${err.message}`)
-            flushDiag()
-          })
-          cp.on('exit', (exitCode) => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('terminal:exit', terminalId, exitCode ?? -1)
-            }
-            ptyRegistry.delete(terminalId)
-          })
-
-          ptyRegistry.set(terminalId, {
-            write: (data: string) => cp.stdin?.write(data),
-            kill: () => cp.kill(),
-            resize: () => {},
-          } as any)
-
-          emit('Raw spawn fallback succeeded (no PTY — limited features)')
-        } catch (fallbackErr: any) {
-          emit(`All fallbacks FAILED: ${fallbackErr.message}`)
-        }
-      }
-
-      flushDiag()
-    }
+    ptyRegistry.set(terminalId, pty)
   })
 
   // terminal:write — send keystrokes to PTY stdin
@@ -704,13 +484,33 @@ app.whenReady().then(() => {
   })
 })
 
-app.on('window-all-closed', () => {
+// ── PTY cleanup on app exit ────────────────────────────────
+
+function cleanupPTYs() {
   for (const [id, pty] of ptyRegistry) {
     pty.kill()
   }
   ptyRegistry.clear()
+}
 
+app.on('window-all-closed', () => {
+  // On macOS: closing the last window should NOT quit the app.
+  // The app stays alive in the dock; PTY processes must survive
+  // so they're available when the user re-opens the window via dock click.
   if (process.platform !== 'darwin') {
+    cleanupPTYs()
     app.quit()
   }
+})
+
+app.on('before-quit', (event) => {
+  // macOS Cmd+Q: prevent default quit handling — we control it via will-quit
+  // This ensures the app quits cleanly (PTY cleanup happens in will-quit)
+  // without accidentally skipping cleanup.
+})
+
+app.on('will-quit', () => {
+  // Actual app exit (Cmd+Q, macOS menu Quit, Windows close):
+  // kill all PTY processes before the process terminates.
+  cleanupPTYs()
 })
