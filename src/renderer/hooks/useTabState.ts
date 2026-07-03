@@ -17,6 +17,15 @@ function createLeaf(): SplitNode {
   return { type: 'leaf', id: generateLeafId() }
 }
 
+function collectLeafIds(node: SplitNode): string[] {
+  if (node.type === 'leaf') return [node.id]
+  return [...collectLeafIds(node.children[0]), ...collectLeafIds(node.children[1])]
+}
+
+export interface TabStateOptions {
+  onCleanupTab?: (terminalIds: string[]) => void
+}
+
 /**
  * Walk a split tree to collect all leaf IDs (used to derive terminal IDs).
  */
@@ -40,7 +49,7 @@ export interface TabStateOptions {
  * - activeTab: the currently selected tab.
  * - setActiveTree: call this when the split pane tree changes (saves it to active tab).
  */
-export function useTabState() {
+export function useTabState(options?: TabStateOptions) {
   const initialTabId = generateTabId()
   const [tabs, setTabs] = useState<Tab[]>([
     { id: initialTabId, title: 'Terminal 1', tree: createLeaf() },
@@ -92,7 +101,7 @@ export function useTabState() {
       closeInfoRef.current = { wasActive: id === activeTabId, index }
       return prev.filter((t) => t.id !== id)
     })
-  }, [activeTabId, options?.onCleanupTab])
+  }, [activeTabId, options])
 
   // If active tab was removed (via closeTab), switch to nearest neighbor
   useEffect(() => {
