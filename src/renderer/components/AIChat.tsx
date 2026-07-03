@@ -89,14 +89,14 @@ export function AIChat({ chatId, model: propModel, systemPrompt }: AIChatProps) 
 
     // Load persisted messages on mount
     api.send('chat:load', chatId)
-    api.on('chat:loaded', onLoaded)
-    api.on('ai:chunk', onChunk)
-    api.on('ai:done', onDone)
+    const unsubLoaded = api.on('chat:loaded', onLoaded)
+    const unsubChunk = api.on('ai:chunk', onChunk)
+    const unsubDone = api.on('ai:done', onDone)
 
     return () => {
-      api.removeAllListeners('chat:loaded')
-      api.removeAllListeners('ai:chunk')
-      api.removeAllListeners('ai:done')
+      unsubLoaded()
+      unsubChunk()
+      unsubDone()
     }
   }, [chatId])
 

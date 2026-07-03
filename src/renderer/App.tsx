@@ -185,6 +185,33 @@ function App(): React.ReactElement {
     )
   }
 
+  // ── Empty state: all tabs closed ──────────────────────────
+  if (tabs.length === 0) {
+    return (
+      <div className="app">
+        <TabBar
+          tabs={tabs}
+          activeTabId={activeTabId}
+          onSwitch={switchTab}
+          onClose={closeTab}
+          onCreate={createTab}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
+        <div className="app-content empty-state">
+          <div className="empty-state-content">
+            <div className="empty-state-icon">🖥️</div>
+            <h2 className="empty-state-title">No Terminals Open</h2>
+            <p className="empty-state-subtitle">Open a new terminal to get started</p>
+            <button className="empty-state-btn" onClick={createTab}>
+              + New Terminal
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const currentConfig: AppConfig = { theme, projectPath }
 
   return (

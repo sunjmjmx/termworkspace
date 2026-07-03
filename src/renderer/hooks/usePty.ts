@@ -45,11 +45,11 @@ export function usePty(terminalId: string, callbacks: PtyCallbacks, cwd?: string
 
     // Subscribe to output and exit events
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    api.on('terminal:output', onData as any)
+    const unsubOutput = api.on('terminal:output', onData as any)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    api.on('terminal:exit', onExit as any)
+    const unsubExit = api.on('terminal:exit', onExit as any)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    api.on('terminal:error', onError as any)
+    const unsubError = api.on('terminal:error', onError as any)
 
     // Spawn the PTY in main process — pass cwd if provided
     if (cwd) {
@@ -60,9 +60,9 @@ export function usePty(terminalId: string, callbacks: PtyCallbacks, cwd?: string
 
     return () => {
       api.send('terminal:kill', terminalId)
-      api.removeAllListeners('terminal:output')
-      api.removeAllListeners('terminal:exit')
-      api.removeAllListeners('terminal:error')
+      unsubOutput()
+      unsubExit()
+      unsubError()
     }
   }, [terminalId, onData, onExit, onError, cwd])
 

@@ -10,7 +10,7 @@ describe('Cell', () => {
       value: {
         platform: 'darwin',
         send: vi.fn(),
-        on: vi.fn(),
+        on: vi.fn(() => () => {}),
         invoke: vi.fn().mockResolvedValue([]),
         removeAllListeners: vi.fn(),
       },

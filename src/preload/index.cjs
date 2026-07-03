@@ -31,8 +31,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   on: (channel, callback) => {
     if (validOnChannels.includes(channel)) {
-      ipcRenderer.on(channel, (_event, ...args) => callback(...args))
+      const handler = (_event, ...args) => callback(...args)
+      ipcRenderer.on(channel, handler)
+      return () => ipcRenderer.removeListener(channel, handler)
     }
+    return () => {}
   },
 
   invoke: (channel, ...args) => {
