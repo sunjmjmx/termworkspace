@@ -484,13 +484,33 @@ app.whenReady().then(() => {
   })
 })
 
-app.on('window-all-closed', () => {
+// ── PTY cleanup on app exit ────────────────────────────────
+
+function cleanupPTYs() {
   for (const [id, pty] of ptyRegistry) {
     pty.kill()
   }
   ptyRegistry.clear()
+}
 
+app.on('window-all-closed', () => {
+  // On macOS: closing the last window should NOT quit the app.
+  // The app stays alive in the dock; PTY processes must survive
+  // so they're available when the user re-opens the window via dock click.
   if (process.platform !== 'darwin') {
+    cleanupPTYs()
     app.quit()
   }
+})
+
+app.on('before-quit', (event) => {
+  // macOS Cmd+Q: prevent default quit handling — we control it via will-quit
+  // This ensures the app quits cleanly (PTY cleanup happens in will-quit)
+  // without accidentally skipping cleanup.
+})
+
+app.on('will-quit', () => {
+  // Actual app exit (Cmd+Q, macOS menu Quit, Windows close):
+  // kill all PTY processes before the process terminates.
+  cleanupPTYs()
 })
