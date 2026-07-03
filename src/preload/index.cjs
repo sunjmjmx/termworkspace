@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   on: (channel, callback) => {
+      // TEST
     if (validOnChannels.includes(channel)) {
       ipcRenderer.on(channel, (_event, ...args) => callback(...args))
     }

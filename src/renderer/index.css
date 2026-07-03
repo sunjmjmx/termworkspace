@@ -725,6 +725,59 @@ body {
   cursor: not-allowed;
 }
 
+/* ── Empty state (all tabs closed) ──────────────────── */
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-base);
+}
+
+.empty-state-content {
+  text-align: center;
+  padding: 48px;
+  max-width: 360px;
+}
+
+.empty-state-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.empty-state-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.empty-state-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.empty-state-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  background: var(--accent-blue);
+  color: var(--send-btn-text);
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.empty-state-btn:hover {
+  background: var(--send-btn-hover);
+}
+
 /* ── Tab bar project folder button ─────────────────── */
 
 .tab-project-btn {

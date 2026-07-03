@@ -42,18 +42,16 @@ export function TabBar({ tabs, activeTabId, onSwitch, onClose, onCreate, theme, 
             onClick={() => onSwitch(tab.id)}
           >
             <span className="tab-title">{tab.title}</span>
-            {tabs.length > 1 && (
-              <span
-                className="tab-close"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onClose(tab.id)
-                }}
-                title="Close tab"
-              >
-                ×
-              </span>
-            )}
+            <span
+              className="tab-close"
+              onClick={(e) => {
+                e.stopPropagation()
+                onClose(tab.id)
+              }}
+              title="Close tab"
+            >
+              ×
+            </span>
           </button>
         ))}
         <button className="tab-new" onClick={onCreate} title="New tab">
