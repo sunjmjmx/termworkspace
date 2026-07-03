@@ -125,8 +125,12 @@ export interface PtyCallbacks {
 // ---------------------------------------------------------------------------
 
 const PYTHON_PTY_BRIDGE = `
-import sys, os, pty, select, errno
+import sys, os, pty, select, errno, struct, fcntl, termios
 shell = sys.argv[1]
+control_fd = int(sys.argv[2]) if len(sys.argv) > 2 else -1
+# Set close-on-exec so the shell child doesn't inherit the control pipe
+if control_fd >= 0:
+    fcntl.fcntl(control_fd, fcntl.F_SETFD, fcntl.FD_CLOEXEC)
 pid, fd = pty.fork()
 if pid == 0:
     basename = os.path.basename(shell)
@@ -135,7 +139,10 @@ if pid == 0:
 else:
     try:
         while True:
-            r, w, x = select.select([sys.stdin, fd], [], [])
+            read_fds = [sys.stdin, fd]
+            if control_fd >= 0:
+                read_fds.append(control_fd)
+            r, w, x = select.select(read_fds, [], [])
             if sys.stdin in r:
                 try:
                     data = os.read(sys.stdin.fileno(), 65536)
@@ -153,6 +160,19 @@ else:
                 if not data: break
                 os.write(sys.stdout.fileno(), data)
                 sys.stdout.flush()
+            if control_fd >= 0 and control_fd in r:
+                try:
+                    cmd = os.read(control_fd, 1024)
+                    if not cmd:
+                        control_fd = -1  # EOF from parent, stop watching
+                        continue
+                    parts = cmd.decode().strip().split()
+                    if len(parts) == 3 and parts[0] == 'RESIZE':
+                        cols, rows = int(parts[1]), int(parts[2])
+                        buf = struct.pack('HHHH', rows, cols, 0, 0)
+                        fcntl.ioctl(fd, termios.TIOCSWINSZ, buf)
+                except (OSError, ValueError, IndexError):
+                    pass
     except (EOFError, KeyboardInterrupt):
         pass
     finally:
@@ -229,11 +249,16 @@ function tryPythonPtyBridge(
   const python = getPythonPath();
 
   try {
-    const child = cpSpawn(python, ['-c', PYTHON_PTY_BRIDGE, shell], {
+    // Use 4 stdio pipes: stdin(0), stdout(1), stderr(2), control(3)
+    // fd 3 is a control pipe for sending RESIZE commands to the Python bridge
+    const child = cpSpawn(python, ['-c', PYTHON_PTY_BRIDGE, shell, '3'], {
       cwd: cwd ?? process.env.HOME ?? os.homedir(),
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
       env: process.env,
     });
+
+    // Control pipe write end (4th stdio entry = child's fd 3)
+    const controlPipe = child.stdio[3] as import('stream').Writable | null;
 
     // Relay errors from the bridge process so callers can react
     child.on('error', (err) => {
@@ -266,9 +291,12 @@ function tryPythonPtyBridge(
       kill: (signal?: string) => {
         try { child.kill((signal ?? 'SIGTERM') as NodeJS.Signals); } catch { /* ignore */ }
       },
-      resize: (_cols: number, _rows: number) => {
-        // Python PTY bridge does not support live resize via this simple
-        // script – silently ignored.
+      resize: (cols: number, rows: number) => {
+        // Forward window size via the control pipe to the Python bridge,
+        // which calls fcntl.ioctl(TIOCSWINSZ) on the pty.fork'd fd
+        if (controlPipe?.writable) {
+          controlPipe.write(`RESIZE ${Math.floor(cols)} ${Math.floor(rows)}\n`);
+        }
       },
     };
   } catch (err) {
@@ -341,7 +369,7 @@ function tryRawSpawn(
  *
  * 1. **node-pty** native spawn (best fidelity — full PTY, resize support).
  * 2. **Python PTY bridge** (Unix only – pty.fork() via an embedded Python
- *    script).  Good fidelity, no resize.
+ *    script).  Good fidelity, with resize support via a control pipe.
  * 3. **Raw child_process.spawn** (pipe-based fallback — no PTY at all).
  *
  * On Windows the fallback skips tier 2 (no Python PTY bridge) and goes
