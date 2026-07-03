@@ -40,11 +40,12 @@ export interface TabStateOptions {
  * - activeTab: the currently selected tab.
  * - setActiveTree: call this when the split pane tree changes (saves it to active tab).
  */
-export function useTabState(options?: TabStateOptions) {
+export function useTabState() {
+  const initialTabId = generateTabId()
   const [tabs, setTabs] = useState<Tab[]>([
-    { id: generateTabId(), title: 'Terminal 1', tree: createLeaf() },
+    { id: initialTabId, title: 'Terminal 1', tree: createLeaf() },
   ])
-  const [activeTabId, setActiveTabId] = useState<string>(tabs[0].id)
+  const [activeTabId, setActiveTabId] = useState<string>(initialTabId)
 
   // Ref to hold the current render cycle's active tab tree
   // Prevents stale closures in callbacks
