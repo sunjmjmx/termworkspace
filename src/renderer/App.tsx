@@ -14,6 +14,12 @@ function firstTerminalId(tree: SplitNode): string {
 }
 
 function App(): React.ReactElement {
+  const cleanupTabPty = useCallback((terminalIds: string[]) => {
+    for (const termId of terminalIds) {
+      window.electronAPI?.send('terminal:kill', termId)
+    }
+  }, [])
+
   const {
     tabs,
     activeTab,
@@ -23,7 +29,7 @@ function App(): React.ReactElement {
     closeTab,
     switchTab,
     restoreTabs,
-  } = useTabState()
+  } = useTabState({ onCleanupTab: cleanupTabPty })
 
   const [theme, setTheme] = useState<ThemeMode>('dark')
   const [fileTreeCollapsed, setFileTreeCollapsed] = useState(false)
@@ -103,10 +109,11 @@ function App(): React.ReactElement {
 
   // ── Auto-save layout on tabs change ──────────────────
   useEffect(() => {
-    if (layoutLoaded.current && tabs.length > 0) {
-      const layout: LayoutData = { tabs, activeTabId }
-      window.electronAPI?.send('layout:save', layout)
-    }
+    if (!layoutLoaded.current || tabs.length === 0) return
+    // Only save if activeTabId still exists in the current tabs array
+    if (!tabs.some((t) => t.id === activeTabId)) return
+    const layout: LayoutData = { tabs, activeTabId }
+    window.electronAPI?.send('layout:save', layout)
   }, [tabs, activeTabId])
 
   // ── Keep <html> class in sync with theme ──────────────

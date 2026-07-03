@@ -44,11 +44,29 @@ export function TabBar({ tabs, activeTabId, onSwitch, onClose, onCreate, theme, 
             <span className="tab-title">{tab.title}</span>
             <span
               className="tab-close"
+              role="button"
+              tabIndex={0}
+              aria-label={`Close ${tab.title}`}
+              title={`Close ${tab.title}`}
               onClick={(e) => {
                 e.stopPropagation()
-                onClose(tab.id)
+                try {
+                  onClose(tab.id)
+                } catch (err) {
+                  console.error('[TabBar] Failed to close tab:', err)
+                }
               }}
-              title="Close tab"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  try {
+                    onClose(tab.id)
+                  } catch (err) {
+                    console.error('[TabBar] Failed to close tab:', err)
+                  }
+                }
+              }}
             >
               ×
             </span>

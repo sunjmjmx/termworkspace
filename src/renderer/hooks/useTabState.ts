@@ -34,7 +34,8 @@ export interface TabStateOptions {
  * useTabState — manages a list of tabs, each with its own layout tree.
  *
  * - createTab(): adds a new tab with a fresh full-screen leaf.
- * - closeTab(id): removes the tab (won't close the last one).
+ * - closeTab(id): removes the tab. When the last tab is closed, tabs becomes
+ *   empty and the caller (App.tsx) renders the empty state UI.
  * - switchTab(id): switches to a different tab, preserving the current tree.
  * - activeTab: the currently selected tab.
  * - setActiveTree: call this when the split pane tree changes (saves it to active tab).
@@ -73,9 +74,6 @@ export function useTabState(options?: TabStateOptions) {
   }, [])
 
   const closeTab = useCallback((id: string) => {
-    // Guard: cannot close the last tab
-    if (tabsRef.current.length <= 1) return
-
     // Clean up PTY processes for the tab being closed
     const tabToClose = tabsRef.current.find((t) => t.id === id)
     if (tabToClose) {
@@ -89,7 +87,6 @@ export function useTabState(options?: TabStateOptions) {
     }
 
     setTabs((prev) => {
-      if (prev.length <= 1) return prev // Double guard
       const index = prev.findIndex((t) => t.id === id)
       closeInfoRef.current = { wasActive: id === activeTabId, index }
       return prev.filter((t) => t.id !== id)
