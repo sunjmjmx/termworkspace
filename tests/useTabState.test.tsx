@@ -62,7 +62,7 @@ describe('useTabState', () => {
     expect(result.current.activeTabId).toBe(firstTabId)
   })
 
-  it('closeTab should not remove the last tab', () => {
+  it('closeTab should remove the last tab (tabs become empty)', () => {
     const { result } = renderHook(() => useTabState())
     const onlyTabId = result.current.tabs[0].id
 
@@ -70,9 +70,8 @@ describe('useTabState', () => {
       result.current.closeTab(onlyTabId)
     })
 
-    // Still has 1 tab, same id
-    expect(result.current.tabs).toHaveLength(1)
-    expect(result.current.tabs[0].id).toBe(onlyTabId)
+    // Last tab is removed, tabs become empty
+    expect(result.current.tabs).toHaveLength(0)
   })
 
   it('closeTab of active tab should switch to nearest neighbor', () => {
