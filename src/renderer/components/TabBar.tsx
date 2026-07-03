@@ -42,18 +42,34 @@ export function TabBar({ tabs, activeTabId, onSwitch, onClose, onCreate, theme, 
             onClick={() => onSwitch(tab.id)}
           >
             <span className="tab-title">{tab.title}</span>
-            {tabs.length > 1 && (
-              <span
-                className="tab-close"
-                onClick={(e) => {
-                  e.stopPropagation()
+            <span
+              className="tab-close"
+              role="button"
+              tabIndex={0}
+              aria-label={`Close ${tab.title}`}
+              title={`Close ${tab.title}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                try {
                   onClose(tab.id)
-                }}
-                title="Close tab"
-              >
-                ×
-              </span>
-            )}
+                } catch (err) {
+                  console.error('[TabBar] Failed to close tab:', err)
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  try {
+                    onClose(tab.id)
+                  } catch (err) {
+                    console.error('[TabBar] Failed to close tab:', err)
+                  }
+                }
+              }}
+            >
+              ×
+            </span>
           </button>
         ))}
         <button className="tab-new" onClick={onCreate} title="New tab">

@@ -18,15 +18,29 @@ function createLeaf(): SplitNode {
 }
 
 /**
+ * Walk a split tree to collect all leaf IDs (used to derive terminal IDs).
+ */
+function collectLeafIds(node: SplitNode): string[] {
+  if (node.type === 'leaf') return [node.id]
+  return [...collectLeafIds(node.children[0]), ...collectLeafIds(node.children[1])]
+}
+
+export interface TabStateOptions {
+  /** Called when a tab is about to be closed — handle PTY cleanup here. */
+  onCleanupTab?: (terminalIds: string[]) => void
+}
+
+/**
  * useTabState — manages a list of tabs, each with its own layout tree.
  *
  * - createTab(): adds a new tab with a fresh full-screen leaf.
- * - closeTab(id): removes the tab (won't close the last one).
+ * - closeTab(id): removes the tab. When the last tab is closed, tabs becomes
+ *   empty and the caller (App.tsx) renders the empty state UI.
  * - switchTab(id): switches to a different tab, preserving the current tree.
  * - activeTab: the currently selected tab.
  * - setActiveTree: call this when the split pane tree changes (saves it to active tab).
  */
-export function useTabState() {
+export function useTabState(options?: TabStateOptions) {
   const [tabs, setTabs] = useState<Tab[]>([
     { id: generateTabId(), title: 'Terminal 1', tree: createLeaf() },
   ])
@@ -60,13 +74,24 @@ export function useTabState() {
   }, [])
 
   const closeTab = useCallback((id: string) => {
+    // Clean up PTY processes for the tab being closed
+    const tabToClose = tabsRef.current.find((t) => t.id === id)
+    if (tabToClose) {
+      try {
+        const leafIds = collectLeafIds(tabToClose.tree)
+        const terminalIds = leafIds.map((lid) => `${lid}_term`)
+        options?.onCleanupTab?.(terminalIds)
+      } catch (err) {
+        console.error('[useTabState] PTY cleanup failed:', err)
+      }
+    }
+
     setTabs((prev) => {
-      if (prev.length <= 1) return prev // Don't close the last tab
       const index = prev.findIndex((t) => t.id === id)
       closeInfoRef.current = { wasActive: id === activeTabId, index }
       return prev.filter((t) => t.id !== id)
     })
-  }, [activeTabId])
+  }, [activeTabId, options?.onCleanupTab])
 
   // If active tab was removed (via closeTab), switch to nearest neighbor
   useEffect(() => {
