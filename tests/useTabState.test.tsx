@@ -62,7 +62,7 @@ describe('useTabState', () => {
     expect(result.current.activeTabId).toBe(firstTabId)
   })
 
-  it('closeTab should not remove the last tab', () => {
+  it('closeTab should remove the last tab (tabs become empty)', () => {
     const { result } = renderHook(() => useTabState())
     const onlyTabId = result.current.tabs[0].id
 
@@ -70,9 +70,8 @@ describe('useTabState', () => {
       result.current.closeTab(onlyTabId)
     })
 
-    // Still has 1 tab, same id
-    expect(result.current.tabs).toHaveLength(1)
-    expect(result.current.tabs[0].id).toBe(onlyTabId)
+    // Last tab is removed, tabs is now empty
+    expect(result.current.tabs).toHaveLength(0)
   })
 
   it('closeTab of active tab should switch to nearest neighbor', () => {
@@ -215,16 +214,16 @@ describe('useTabState', () => {
     }
   })
 
-  it('closeTab should not call onCleanupTab when closing last tab (guard)', () => {
+  it('closeTab should call onCleanupTab when closing last tab', () => {
     const onCleanupTab = vi.fn()
     const { result } = renderHook(() => useTabState({ onCleanupTab }))
 
     const onlyTabId = result.current.tabs[0].id
     act(() => { result.current.closeTab(onlyTabId) })
 
-    // Last tab — should NOT close and NOT call cleanup
-    expect(result.current.tabs).toHaveLength(1)
-    expect(onCleanupTab).not.toHaveBeenCalled()
+    // Last tab is closed — cleanup IS called, tabs become empty
+    expect(result.current.tabs).toHaveLength(0)
+    expect(onCleanupTab).toHaveBeenCalledTimes(1)
   })
 
   it('closeTab of middle tab should switch active to left neighbor', () => {
