@@ -300,16 +300,60 @@ function setupIPC() {
       emit(`Full error: ${err.stack?.split('\n').slice(0, 3).join(' | ')}`)
       flushDiag()
 
-      // ── Attempt 2: script command (macOS built-in PTY) ──
+      // ── Attempt 2: Python PTY bridge (macOS built-in) ──
       try {
-        emit('Falling back to /usr/bin/script (macOS PTY)...')
+        emit('Falling back to Python PTY bridge...')
         const { spawn: cpSpawn } = await import('child_process')
 
         const shell = process.env.SHELL && existsSync(process.env.SHELL)
           ? realpathSync(process.env.SHELL)
           : '/bin/sh'
 
-        const script = cpSpawn('/usr/bin/script', ['-q', '/dev/null', shell], {
+        // Python script that creates a real PTY via pty.fork()
+        // Available on all macOS systems via /usr/bin/python3
+        const ptyBridgePy = `
+import sys, os, pty, select, signal, errno
+
+shell = sys.argv[1]
+
+pid, fd = pty.fork()
+if pid == 0:
+    # Child: exec shell as login shell
+    basename = os.path.basename(shell)
+    os.execvp(shell, ['-' + basename])
+    sys.exit(1)
+else:
+    # Parent: bridge fd <-> stdin/stdout
+    try:
+        while True:
+            r, w, x = select.select([sys.stdin, fd], [], [])
+            if sys.stdin in r:
+                try:
+                    data = os.read(sys.stdin.fileno(), 65536)
+                except OSError as e:
+                    if e.errno != errno.EINTR: break
+                    continue
+                if not data: break
+                os.write(fd, data)
+            if fd in r:
+                try:
+                    data = os.read(fd, 65536)
+                except OSError as e:
+                    if e.errno != errno.EINTR: break
+                    continue
+                if not data: break
+                os.write(sys.stdout.fileno(), data)
+                sys.stdout.flush()
+    except (EOFError, KeyboardInterrupt):
+        pass
+    finally:
+        try: os.close(fd)
+        except: pass
+        try: os.waitpid(pid, 0)
+        except: pass
+`
+
+        const cp = cpSpawn('/usr/bin/python3', ['-c', ptyBridgePy, shell], {
           cwd: os.homedir(),
           stdio: ['pipe', 'pipe', 'pipe'],
           env: {
@@ -322,37 +366,39 @@ function setupIPC() {
           },
         })
 
-        script.stdout?.on('data', (data: Buffer) => {
+        cp.stdout?.on('data', (data: Buffer) => {
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('terminal:output', terminalId, data.toString())
           }
         })
-        script.stderr?.on('data', (data: Buffer) => {
+        cp.stderr?.on('data', (data: Buffer) => {
+          // Python warnings/errors — display in terminal
           if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('terminal:output', terminalId, data.toString())
+            mainWindow.webContents.send('terminal:output', terminalId, `\x1b[33m${data.toString()}\x1b[0m`)
           }
         })
-        script.on('error', (err: Error) => {
-          emit(`script error: ${err.message}`)
+        cp.on('error', (err: Error) => {
+          emit(`Python PTY error: ${err.message}`)
           flushDiag()
         })
-        script.on('exit', (exitCode) => {
+        cp.on('exit', (exitCode) => {
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('terminal:exit', terminalId, exitCode ?? -1)
           }
           ptyRegistry.delete(terminalId)
         })
 
-        // Wrap script in a PTY-like interface
         ptyRegistry.set(terminalId, {
-          write: (data: string) => script.stdin?.write(data),
-          kill: () => script.kill(),
-          resize: () => {},  // 'script' doesn't support resize
+          write: (data: string) => cp.stdin?.write(data),
+          kill: () => cp.kill(),
+          resize: (_cols?: number, _rows?: number) => {
+            // Python PTY doesn't support dynamic resize
+          },
         } as any)
 
-        emit('Script PTY fallback succeeded')
+        emit('Python PTY bridge succeeded')
       } catch (scriptErr: any) {
-        emit(`Script fallback FAILED: ${scriptErr.message}`)
+        emit(`Python PTY bridge FAILED: ${scriptErr.message}`)
 
         // ── Attempt 3: Raw child_process.spawn ──
         try {
