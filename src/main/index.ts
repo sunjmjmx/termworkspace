@@ -300,54 +300,111 @@ function setupIPC() {
       emit(`Full error: ${err.stack?.split('\n').slice(0, 3).join(' | ')}`)
       flushDiag()
 
-      // ── Attempt 2: Fallback to child_process.spawn ──
+      // ── Attempt 2: script command (macOS built-in PTY) ──
       try {
-        emit('Falling back to child_process.spawn...')
+        emit('Falling back to /usr/bin/script (macOS PTY)...')
         const { spawn: cpSpawn } = await import('child_process')
 
         const shell = process.env.SHELL && existsSync(process.env.SHELL)
           ? realpathSync(process.env.SHELL)
           : '/bin/sh'
 
-        const cp = cpSpawn(shell, [], {
+        const script = cpSpawn('/usr/bin/script', ['-q', '/dev/null', shell], {
           cwd: os.homedir(),
+          stdio: ['pipe', 'pipe', 'pipe'],
           env: {
             TERM: 'xterm-256color',
             HOME: os.homedir(),
-            PATH: '/usr/local/bin:/usr/bin:/bin',
+            PATH: '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/opt/homebrew/sbin',
             SHELL: shell,
+            USER: process.env.USER || 'user',
+            LOGNAME: process.env.LOGNAME || 'user',
           },
         })
 
-        cp.stdout?.on('data', (data: Buffer) => {
+        script.stdout?.on('data', (data: Buffer) => {
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('terminal:output', terminalId, data.toString())
           }
         })
-        cp.stderr?.on('data', (data: Buffer) => {
+        script.stderr?.on('data', (data: Buffer) => {
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('terminal:output', terminalId, data.toString())
           }
         })
-        cp.on('exit', (exitCode) => {
+        script.on('error', (err: Error) => {
+          emit(`script error: ${err.message}`)
+          flushDiag()
+        })
+        script.on('exit', (exitCode) => {
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('terminal:exit', terminalId, exitCode ?? -1)
           }
           ptyRegistry.delete(terminalId)
         })
 
-        // Override registry entry with fallback process
+        // Wrap script in a PTY-like interface
         ptyRegistry.set(terminalId, {
-          write: (data: string) => cp.stdin?.write(data),
-          kill: () => cp.kill(),
-          resize: () => {},  // no-op without PTY
-          onData: undefined,
-          onExit: undefined,
+          write: (data: string) => script.stdin?.write(data),
+          kill: () => script.kill(),
+          resize: () => {},  // 'script' doesn't support resize
         } as any)
 
-        emit('Fallback spawn succeeded (no PTY — limited features)')
-      } catch (fallbackErr: any) {
-        emit(`Fallback also FAILED: ${fallbackErr.message}`)
+        emit('Script PTY fallback succeeded')
+      } catch (scriptErr: any) {
+        emit(`Script fallback FAILED: ${scriptErr.message}`)
+
+        // ── Attempt 3: Raw child_process.spawn ──
+        try {
+          emit('Falling back to child_process.spawn (no PTY)...')
+          const { spawn: cpSpawn } = await import('child_process')
+
+          const shell = process.env.SHELL && existsSync(process.env.SHELL)
+            ? realpathSync(process.env.SHELL)
+            : '/bin/sh'
+
+          const cp = cpSpawn(shell, [], {
+            cwd: os.homedir(),
+            stdio: ['pipe', 'pipe', 'pipe'],
+            env: {
+              TERM: 'xterm-256color',
+              HOME: os.homedir(),
+              PATH: '/usr/local/bin:/usr/bin:/bin',
+              SHELL: shell,
+            },
+          })
+
+          cp.stdout?.on('data', (data: Buffer) => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('terminal:output', terminalId, data.toString())
+            }
+          })
+          cp.stderr?.on('data', (data: Buffer) => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('terminal:output', terminalId, data.toString())
+            }
+          })
+          cp.on('error', (err: Error) => {
+            emit(`spawn error: ${err.message}`)
+            flushDiag()
+          })
+          cp.on('exit', (exitCode) => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('terminal:exit', terminalId, exitCode ?? -1)
+            }
+            ptyRegistry.delete(terminalId)
+          })
+
+          ptyRegistry.set(terminalId, {
+            write: (data: string) => cp.stdin?.write(data),
+            kill: () => cp.kill(),
+            resize: () => {},
+          } as any)
+
+          emit('Raw spawn fallback succeeded (no PTY — limited features)')
+        } catch (fallbackErr: any) {
+          emit(`All fallbacks FAILED: ${fallbackErr.message}`)
+        }
       }
 
       flushDiag()
