@@ -73,34 +73,93 @@ rm -rf ~/.termworkspace/
 
 ## API 密钥配置
 
-AI 对话需要配置 API 密钥。两种方式二选一：
+AI 对话需要配置 API 密钥才能使用。TermWorkspace 支持同时配置多个 AI 服务商，在 UI 上随时切换。
 
-### 方式一：.env 文件（推荐）
+### 场景：我想同时配 DeepSeek 和 Kimi
 
-在项目根目录创建 `.env` 文件：
+配好之后，AI 面板顶部会出现一个下拉菜单，你可以随时切换用哪个模型。
+
+#### 第 1 步：注册账号，拿密钥
+
+两个服务商都需要注册后才能拿到密钥：
+
+| 服务商 | 注册地址 | 密钥获取 |
+|--------|---------|---------|
+| **DeepSeek** | [platform.deepseek.com](https://platform.deepseek.com/api_keys) | 登录 → API Keys → 创建密钥 |
+| **Kimi** | [console.kimi.moonshot.cn](https://kimi.moonshot.cn/console/api-key) | 登录 → API Keys → 创建密钥 |
+
+两个都注册还是只注册一个，随你。配一个也能用，配两个可以切换。
+
+#### 第 2 步：配置 .env 文件
+
+在项目根目录（跟 `package.json` 同级）创建 `.env`，填入密钥：
 
 ```bash
-# DeepSeek（推荐，速度快，性价比高）
-# 申请密钥：https://platform.deepseek.com/api_keys
+# DeepSeek（速度快，性价比高）
 DEEPSEEK_API_KEY=sk-你的密钥
 
-# 或者 Kimi（长上下文，适合读代码和文档）
-# 申请密钥：https://kimi.moonshot.cn/console/api-key
+# Kimi（长上下文，适合读长代码和文档）
 KIMI_API_KEY=sk-你的密钥
 ```
 
-**两个都填也行**，程序按 KIMI → DEEPSEEK 优先级选第一个可用的。`.env` 文件已经写在 `.gitignore` 里，不会提交到 GitHub。
+> **偷懒技巧：** 项目里自带了 `.env.example` 模板，复制一份改改就行：
+> ```bash
+> cp .env.example .env
+> # 然后编辑 .env 填入密钥
+> ```
 
-项目目录里有个 `.env.example` 文件作为模板，可以复制一份来改：
+`.env` 文件已经写在 `.gitignore` 里了，不会提交到 GitHub，放心填。
 
-```bash
-cp .env.example .env
-# 然后编辑 .env 填入密钥
-```
+**两个都填了之后，程序会自动发现两个 Provider，AI 面板顶部就会出现切换菜单。**
 
-### 验证是否生效
+#### 第 3 步：启动，切换 Provider
 
-启动后打开 AI 面板（点终端右上角的 🤖 按钮，或按 `⌘I`），输入任意内容发送。如果看到 `❌ No API key found`，说明没读到密钥——检查 `.env` 文件名和位置（必须跟 `package.json` 同目录）。
+1. 启动 TermWorkspace，打开 AI 面板（点 🤖 按钮，或按 `⌘I`）
+2. 面板顶部多了一个下拉菜单——点它就能切换（见截图 `02-ai-chat.png`）：
+   - 选 `DeepSeek (deepseek-v4-flash)` → AI 走 DeepSeek
+   - 选 `Kimi (kimi-k2.6)` → AI 走 Kimi
+
+切换即时生效，不需要重启应用。
+
+### 验证能否正常对话
+
+在下拉菜单里选一个 Provider，输入任意问题发送。能收到流式回复就算配好了。
+
+### 没配密钥时长什么样？
+
+- **下拉菜单里**：没配密钥的选项后面灰色显示 `— no API key`，仍然看得见但选不了
+- **试图发送消息时**：应用返回 `❌ No API key found`，消息发不出去
+
+这是正常行为——只配了 DeepSeek，Kimi 选项就会显示 `— no API key`，不影响 DeepSeek 正常使用。
+
+### 支持的 Provider 一览
+
+| Provider | 模型 | 端点 (baseUrl) | 环境变量 |
+|----------|------|----------------|---------|
+| **DeepSeek** | `deepseek-v4-flash` | `https://api.deepseek.com` | `DEEPSEEK_API_KEY` |
+| **Kimi** | `kimi-k2.6` | `https://api.moonshot.cn/v1` | `KIMI_API_KEY` |
+
+### 常见问题
+
+**两个 Key 都配了，但下拉菜单里切换没反应？**
+
+检查 `.env` 文件格式——这是最常见的翻车点：
+- 等号两边**不要有空格**：`DEEPSEEK_API_KEY=sk-xxx` ✅，`DEEPSEEK_API_KEY = sk-xxx` ❌
+- 密钥**不要加引号**：`DEEPSEEK_API_KEY=sk-xxx` ✅，`DEEPSEEK_API_KEY="sk-xxx"` ❌
+- 文件名是 `.env`，不是 `.env.txt` 或 `.env.production`
+- 修改 `.env` 后**必须重启 TermWorkspace** 才会重新读取
+
+**模型调用返回了错误？**
+
+先确认该 Provider 的密钥确实有效：
+1. 登录对应平台检查 API Key 状态（是否过期、余额是否充足）
+2. 用 curl 直接测试：
+   ```bash
+   curl https://api.deepseek.com/v1/models -H "Authorization: Bearer $DEEPSEEK_API_KEY"
+   curl https://api.moonshot.cn/v1/models -H "Authorization: Bearer $KIMI_API_KEY"
+   ```
+3. 如果 curl 返回 401/403，说明密钥本身有问题——去平台重新生成一个
+4. 如果 curl 正常但应用里报错，可能是网络代理问题——检查你的 VPN 或代理设置
 
 ---
 
