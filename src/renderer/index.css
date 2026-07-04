@@ -333,7 +333,7 @@ body {
   min-height: 0;
 }
 
-/* Mode switch button (hover reveal, top-left) */
+/* Mode switch button (always visible, top-left) */
 .cell-mode-btn {
   position: absolute;
   top: 4px;
@@ -346,13 +346,8 @@ body {
   font-size: 11px;
   cursor: pointer;
   z-index: 10;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  line-height: 1.4;
-}
-
-.cell:hover .cell-mode-btn {
   opacity: 1;
+  line-height: 1.4;
 }
 
 .cell-mode-btn:hover {
