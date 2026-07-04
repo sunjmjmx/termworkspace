@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Terminal } from './Terminal'
 import { AIChat } from './AIChat'
 import type { ThemeMode } from '../../types'
@@ -14,7 +14,9 @@ interface CellProps {
 /**
  * Cell — a grid cell that can display either a Terminal or an AI Chat.
  *
- * - Hover reveals a mode switch button (terminal ↔ ai).
+ * - Always-visible mode switch button (terminal ↔ ai).
+ * - Escape key closes AI panel when in AI mode.
+ * - AIChat receives an onClose callback for its own close button.
  * - Both components stay mounted (CSS display toggle) to preserve state.
  */
 export function Cell({ leafId, theme, projectPath }: CellProps) {
@@ -23,6 +25,23 @@ export function Cell({ leafId, theme, projectPath }: CellProps) {
   const toggleMode = useCallback(() => {
     setMode((prev) => (prev === 'terminal' ? 'ai' : 'terminal'))
   }, [])
+
+  const closeAIChat = useCallback(() => {
+    setMode('terminal')
+  }, [])
+
+  // Escape key closes AI chat when in AI mode
+  useEffect(() => {
+    if (mode !== 'ai') return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        closeAIChat()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [mode, closeAIChat])
 
   return (
     <div className="cell">
@@ -39,16 +58,16 @@ export function Cell({ leafId, theme, projectPath }: CellProps) {
         className="cell-layer"
         style={{ display: mode === 'ai' ? 'flex' : 'none' }}
       >
-        <AIChat chatId={`${leafId}_ai`} />
+        <AIChat chatId={`${leafId}_ai`} onClose={closeAIChat} />
       </div>
 
-      {/* Mode switch button (hover reveal) */}
+      {/* Mode switch button (always visible) */}
       <button
         className="cell-mode-btn"
         onClick={toggleMode}
-        title={mode === 'terminal' ? 'Switch to AI mode' : 'Switch to Terminal mode'}
+        title={mode === 'terminal' ? 'Open AI chat' : 'Close AI panel'}
       >
-        {mode === 'terminal' ? '🤖' : '▸'}
+        {mode === 'terminal' ? '🤖' : '✕'}
       </button>
     </div>
   )
