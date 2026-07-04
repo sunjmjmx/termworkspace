@@ -8,6 +8,8 @@ interface AIChatProps {
   model?: string
   /** Optional system prompt */
   systemPrompt?: string
+  /** Optional callback to close/dismiss this AI chat panel */
+  onClose?: () => void
 }
 
 /**
@@ -21,7 +23,7 @@ interface AIChatProps {
  * - Message bubbles with Catppuccin Mocha palette.
  * - Model selector dropdown for switching between AI providers.
  */
-export function AIChat({ chatId, model: propModel, systemPrompt }: AIChatProps) {
+export function AIChat({ chatId, model: propModel, systemPrompt, onClose }: AIChatProps) {
   const [messages, setMessages] = useState<AiChatMessage[]>([])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
@@ -177,6 +179,13 @@ export function AIChat({ chatId, model: propModel, systemPrompt }: AIChatProps) 
 
   return (
     <div className="ai-chat">
+      {/* Close button */}
+      {onClose && (
+        <button className="ai-chat-close-btn" onClick={onClose} title="Close AI panel (Esc)">
+          ×
+        </button>
+      )}
+
       {/* Model selector */}
       {!loadingProviders && providers.length > 1 && (
         <div className="ai-chat-model-selector">
