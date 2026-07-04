@@ -1,42 +1,62 @@
 # TermWorkspace
 
-一个 macOS 终端工作台 —— 集成了文件树、AI 对话和会话持久化，让你在终端里写代码、查文档、问 AI，不用频繁切窗口。
+一个 macOS 终端工作台——集成多标签终端、AI 对话、文件浏览器，让你写代码、查文档、问 AI 都在一个窗口里完成。
 
 ## 截图
 
-> 🖼️ *正在测试，截图待补充*
+| 截图文件 | 场景描述 |
+|:---------|:---------|
+| `01-main-interface.png` | 主界面全貌——多标签终端 + 文件浏览器 + AI 对话面板 |
+| `02-ai-chat.png` | AI 对话面板——与 AI 交流报错或代码问题 |
+| `03-dark-theme.png` | 深色主题（Dark）——夜间编码模式 |
+| `04-light-theme.png` | 浅色主题（Light）——日间编码模式 |
+| `05-file-browser.png` | 文件浏览器——左侧文件树，点击显示路径 |
+| `06-project-dialog.png` | 项目选择对话框——首次启动时选择代码目录 |
+| `07-empty-tabs.png` | 空标签状态——所有 Tab 关闭后的占位界面 |
+| `08-split-mode.png` | 分屏模式——终端和 AI 同面板快速切换 |
 
 ## 快速开始
 
 ```bash
+# 1. 下载代码
 git clone https://github.com/sunjmjmx/termworkspace.git
-cd termworkspace
-npm install
-npm run build
-npm start
+
+# 2. 安装依赖（首次约 1-2 分钟）
+cd termworkspace && npm install
+
+# 3. 构建并启动
+npm run build && npm start
 ```
 
-> 首次使用需在项目根目录创建 `.env` 文件配置 AI API 密钥
-
-详细的使用说明（安装、配置 API 密钥、日常场景、常见问题）见：
-
-➡️ **[docs/user-guide.md](docs/user-guide.md)**
+> **需要什么？** 一台 macOS 电脑，装好 **Node.js 18+** 和 **Git**。
 
 ## 功能一览
 
-- **多标签终端** — 多个 Tab，每个 Tab 一个独立终端会话
-- **分屏模式** — 单个 Tab 内终端/AI 双面板
-- **AI 对话** — 内置流式 AI 助手（支持 DeepSeek / Kimi）
-- **文件浏览器** — 左侧文件树，点击文件显示路径
-- **项目向导** — 启动时选择项目目录，自动 cd 到项目根目录
+- **多标签终端** — 多个独立 Tab，每个 Tab 一个终端会话，支持新建、关闭、切换、重命名
+- **分屏模式** — 单个 Tab 内终端和 AI 对话面板切换，不用切窗口
+- **AI 对话** — 内置流式 AI 助手（支持 DeepSeek / Kimi），对话自动保存
+- **文件浏览器** — 左侧文件树，点击文件自动显示路径
+- **项目向导** — 启动时选择项目目录，自动 cd 到项目根
 - **主题切换** — Dark / Light 双主题，关闭后自动记忆
-- **会话持久化** — 关闭再打开，Tab 布局、AI 对话、主题设置全部恢复
+- **会话持久化** — 关掉再打开，Tab 布局、AI 对话、主题全部恢复
 
 ## 技术栈
 
-- Electron 33 + Vite 6 + React 19
-- TypeScript + xterm.js + node-pty
-- Vitest + Testing Library（36 个单元测试）
+Electron 33 + Vite 6 + React 19 + TypeScript / xterm.js + node-pty / Vitest + Testing Library
+
+## 项目结构
+
+```
+termworkspace/
+├── src/
+│   ├── main/          # Electron 主进程
+│   ├── renderer/      # React UI 组件
+│   ├── preload/       # 预加载脚本
+│   └── types/         # TypeScript 类型定义
+├── tests/             # Vitest 单元测试
+├── docs/              # 文档和截图
+└── package.json
+```
 
 ## 许可证
 
