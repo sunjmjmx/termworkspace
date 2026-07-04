@@ -4,8 +4,6 @@
 
 ## 截图
 
-> 提示：以下截图需要在有图形界面的 macOS 上启动应用后截取。当前文档附带文本场景描述（`docs/screenshots/user-guide/*.txt`），方便你了解界面布局。实际截图放置后自动替换。
-
 | 截图文件 | 场景描述 |
 |:---------|:---------|
 | `01-main-interface.png` | 主界面全貌——多标签终端 + 文件浏览器 + AI 对话面板 |
@@ -57,7 +55,6 @@ termworkspace/
 │   └── types/         # TypeScript 类型定义
 ├── tests/             # Vitest 单元测试
 ├── docs/              # 文档和截图
-├── .env               # AI API 密钥配置
 └── package.json
 ```
 
