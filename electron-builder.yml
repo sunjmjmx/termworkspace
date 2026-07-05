@@ -29,7 +29,7 @@ mac:
   artifactName: ${name}-${version}-${arch}.${ext}
 
 dmg:
-  title: TermWorkspace ${version}
+  title: TermWorkspace ${version} (${arch})
 
 win:
   target:
