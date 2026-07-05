@@ -4,8 +4,8 @@ import os from 'os'
 import { createPTY, PtyProcess } from './platform'
 import https from 'https'
 import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync, statSync, realpathSync } from 'fs'
-import type { AiChatRequest, AppConfig, LayoutData, FileTreeEntry, AiChatMessage, SaveApiKeyRequest } from '../types'
-import { discoverProviders, getActiveProvider, hasAnyApiKey, saveApiKey } from './ai-config'
+import type { AiChatRequest, AppConfig, LayoutData, FileTreeEntry, AiChatMessage, SaveApiKeyRequest, CustomProviderConfig } from '../types'
+import { discoverProviders, getActiveProvider, hasAnyApiKey, saveApiKey, loadCustomProviders, addCustomProvider, removeCustomProvider, saveEnvKey } from './ai-config'
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
@@ -393,6 +393,33 @@ function setupIPC() {
       console.warn(`[termworkspace] unknown provider: "${provider}"`)
     }
     // Broadcast updated status to all windows
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('config:apikey-status', {
+        noApiKey: !hasAnyApiKey(),
+        isPackaged: !VITE_DEV_SERVER_URL,
+      })
+    }
+  })
+
+  // config:list-custom-providers — return all custom providers
+  ipcMain.handle('config:list-custom-providers', () => {
+    return loadCustomProviders()
+  })
+
+  // config:save-custom-provider — add/update a custom provider and save API key
+  ipcMain.on('config:save-custom-provider', (_event, request: CustomProviderConfig & { apiKey: string }) => {
+    const { apiKey, ...providerConfig } = request
+    console.log(`[termworkspace] config:save-custom-provider: "${providerConfig.id}"`)
+
+    // Save the custom provider definition
+    addCustomProvider(providerConfig)
+
+    // Save the API key to .env under the user-specified env key
+    if (apiKey && apiKey.trim()) {
+      saveEnvKey(providerConfig.envKey, apiKey.trim())
+    }
+
+    // Broadcast updated status
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('config:apikey-status', {
         noApiKey: !hasAnyApiKey(),
