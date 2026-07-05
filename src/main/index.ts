@@ -5,7 +5,7 @@ import { createPTY, PtyProcess } from './platform'
 import https from 'https'
 import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync, statSync, realpathSync } from 'fs'
 import type { AiChatRequest, AppConfig, LayoutData, FileTreeEntry, AiChatMessage } from '../types'
-import { discoverProviders, getActiveProvider } from './ai-config'
+import { discoverProviders, getActiveProvider, hasAnyApiKey } from './ai-config'
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
@@ -18,24 +18,31 @@ const ptyRegistry = new Map<string, PtyProcess>()
 // Uses ~/.termworkspace/config/app-config.json (fixed path, independent of
 // app.getPath('userData') which differs between dev and packaged builds).
 
-const oldConfigDir = path.join(app.getPath('userData'), 'config')
-const oldConfigFile = path.join(oldConfigDir, 'app-config.json')
-
 const TW_HOME = path.join(os.homedir(), '.termworkspace')
 const configDir = path.join(TW_HOME, 'config')
 const configFile = path.join(configDir, 'app-config.json')
 
 function loadConfig(): AppConfig {
   // Migration: if ~/.termworkspace/config/app-config.json doesn't exist but
-  // the old app.getPath('userData') path does, silently migrate it.
-  if (!existsSync(configFile) && existsSync(oldConfigFile)) {
-    try {
-      mkdirSync(configDir, { recursive: true })
-      const raw = readFileSync(oldConfigFile, 'utf-8')
-      writeFileSync(configFile, raw, 'utf-8')
-      console.log(`[termworkspace] migrated config: ${oldConfigFile} → ${configFile}`)
-    } catch (e) {
-      console.warn(`[termworkspace] config migration failed:`, e)
+  // a config from an older installation (dev or packaged) does, silently migrate it.
+  if (!existsSync(configFile)) {
+    const userDataRoot = path.dirname(app.getPath('userData'))
+    const oldPaths = [
+      path.join(userDataRoot, 'termworkspace-v2', 'config', 'app-config.json'),
+      path.join(userDataRoot, 'com.termworkspace.v2', 'config', 'app-config.json'),
+    ]
+    for (const oldFile of oldPaths) {
+      if (existsSync(oldFile)) {
+        try {
+          mkdirSync(configDir, { recursive: true })
+          const raw = readFileSync(oldFile, 'utf-8')
+          writeFileSync(configFile, raw, 'utf-8')
+          console.log(`[termworkspace] migrated config: ${oldFile} → ${configFile}`)
+          break
+        } catch (e) {
+          console.warn(`[termworkspace] config migration from ${oldFile} failed:`, e)
+        }
+      }
     }
   }
 
@@ -362,10 +369,14 @@ function setupIPC() {
     req.end()
   })
 
-  // config:load — return current config
+  // config:load — return current config + API key status
   ipcMain.on('config:load', (event) => {
     const config = loadConfig()
     event.reply('config:loaded', config)
+    event.reply('config:apikey-status', {
+      noApiKey: !hasAnyApiKey(),
+      isPackaged: !VITE_DEV_SERVER_URL,
+    })
   })
 
   // config:save — persist and broadcast

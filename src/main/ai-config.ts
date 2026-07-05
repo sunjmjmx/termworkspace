@@ -82,6 +82,14 @@ export function discoverProviders(): AiProvider[] {
 }
 
 /**
+ * Check if any provider has a configured API key.
+ */
+export function hasAnyApiKey(): boolean {
+  const providers = discoverProviders()
+  return providers.some((p) => p.configured)
+}
+
+/**
  * Get the active provider config for making API calls.
  * Merges activeProviderId from AppConfig with discovered provider credentials.
  */

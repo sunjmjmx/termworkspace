@@ -724,6 +724,7 @@ body {
   align-items: center;
   justify-content: center;
   background: var(--bg-base);
+  position: relative;
 }
 
 .project-picker-card {
@@ -775,6 +776,19 @@ body {
 .project-picker-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.api-key-warning {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 10px 16px;
+  background: #b91c1c;
+  color: #fff;
+  font-size: 13px;
+  text-align: center;
+  z-index: 10;
 }
 
 /* ── Empty state (all tabs closed) ──────────────────── */
