@@ -3,7 +3,7 @@ import { SplitPane } from './components/SplitPane'
 import { TabBar } from './components/TabBar'
 import { FileTree } from './components/FileTree'
 import { useTabState } from './hooks/useTabState'
-import type { ThemeMode, AppConfig, LayoutData, SplitNode, AiProvider } from '../types'
+import type { ThemeMode, AppConfig, LayoutData, SplitNode, AiProvider, CustomProviderConfig } from '../types'
 
 /**
  * Walk the split tree to find the first leaf's terminal ID.
@@ -45,6 +45,17 @@ function App(): React.ReactElement {
   const [showKeyMap, setShowKeyMap] = useState<Record<string, boolean>>({})
   const [savingKey, setSavingKey] = useState<Record<string, boolean>>({})
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
+
+  // ── Custom provider form state ────────────────────────
+  const [showCustomProviderForm, setShowCustomProviderForm] = useState(false)
+  const [customProviderForm, setCustomProviderForm] = useState({
+    name: '',
+    baseUrl: '',
+    model: '',
+    apiKey: '',
+    envKey: '',
+  })
+  const [customProviderSaveMsg, setCustomProviderSaveMsg] = useState<string | null>(null)
 
   const loadProviders = useCallback(async () => {
     const api = window.electronAPI
@@ -227,6 +238,58 @@ function App(): React.ReactElement {
     }
   }, [providers])
 
+  const resetCustomProviderForm = useCallback(() => {
+    setCustomProviderForm({
+      name: '',
+      baseUrl: '',
+      model: '',
+      apiKey: '',
+      envKey: '',
+    })
+    setCustomProviderSaveMsg(null)
+  }, [])
+
+  const handleCustomProviderFieldChange = useCallback((field: string, value: string) => {
+    setCustomProviderForm((prev) => {
+      const next = { ...prev, [field]: value }
+      // Auto-fill envKey from name (uppercase + _API_KEY suffix)
+      if (field === 'name' && !prev.envKey) {
+        const autoKey = value.toUpperCase().replace(/[^A-Z0-9]/g, '_') + '_API_KEY'
+        next.envKey = autoKey
+      }
+      return next
+    })
+  }, [])
+
+  const handleSaveCustomProvider = useCallback(async () => {
+    const api = window.electronAPI
+    if (!api) return
+
+    const { name, baseUrl, model, apiKey, envKey } = customProviderForm
+    if (!name.trim() || !baseUrl.trim() || !model.trim()) {
+      setCustomProviderSaveMsg('请填写 Provider 名称、Base URL 和模型名')
+      return
+    }
+
+    const id = 'custom_' + name.trim().toLowerCase().replace(/[^a-z0-9]/g, '_')
+
+    const provider: CustomProviderConfig & { apiKey: string } = {
+      id,
+      name: name.trim(),
+      model: model.trim(),
+      baseUrl: baseUrl.trim().replace(/\/+$/, ''),
+      envKey: envKey.trim() || (name.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_') + '_API_KEY'),
+      apiKey: apiKey.trim(),
+    }
+
+    api.send('config:save-custom-provider', provider)
+    setCustomProviderSaveMsg(`✅ 自定义 Provider "${provider.name}" 已保存`)
+    setShowCustomProviderForm(false)
+
+    // Reload provider list to show the new one
+    setTimeout(() => loadProviders(), 200)
+  }, [customProviderForm, loadProviders])
+
   // ── Project picker overlay (before project is selected) ──
   if (!projectPath) {
     return (
@@ -328,6 +391,7 @@ function App(): React.ReactElement {
           onToggleCollapse={toggleFileTree}
           activeTerminalId={activeTerminalId}
           projectPath={projectPath}
+          onOpenFolder={openProjectPicker}
         />
         <SplitPane
           key={activeTabId}
@@ -397,6 +461,92 @@ function App(): React.ReactElement {
                 <p>No providers available.</p>
               </div>
             )}
+
+            {/* ── Custom provider section ──────────────── */}
+            <div className="settings-section-divider" />
+
+            <div className="settings-custom-provider-section">
+              <button
+                className="settings-custom-add-btn"
+                onClick={() => {
+                  resetCustomProviderForm()
+                  setShowCustomProviderForm((prev) => !prev)
+                }}
+              >
+                {showCustomProviderForm ? '− 收起' : '+ 添加自定义 Provider'}
+              </button>
+
+              {showCustomProviderForm && (
+                <div className="settings-custom-form">
+                  <div className="settings-custom-field">
+                    <label className="settings-custom-label">Provider 名称</label>
+                    <input
+                      className="settings-input"
+                      placeholder="例如: OpenAI"
+                      value={customProviderForm.name}
+                      onChange={(e) => handleCustomProviderFieldChange('name', e.target.value)}
+                    />
+                  </div>
+                  <div className="settings-custom-field">
+                    <label className="settings-custom-label">Base URL</label>
+                    <input
+                      className="settings-input"
+                      placeholder="例如: https://api.openai.com/v1"
+                      value={customProviderForm.baseUrl}
+                      onChange={(e) => handleCustomProviderFieldChange('baseUrl', e.target.value)}
+                    />
+                  </div>
+                  <div className="settings-custom-field">
+                    <label className="settings-custom-label">模型名</label>
+                    <input
+                      className="settings-input"
+                      placeholder="例如: gpt-4o"
+                      value={customProviderForm.model}
+                      onChange={(e) => handleCustomProviderFieldChange('model', e.target.value)}
+                    />
+                  </div>
+                  <div className="settings-custom-field">
+                    <label className="settings-custom-label">API Key</label>
+                    <input
+                      className="settings-input"
+                      type="password"
+                      placeholder="输入 API Key"
+                      value={customProviderForm.apiKey}
+                      onChange={(e) => handleCustomProviderFieldChange('apiKey', e.target.value)}
+                    />
+                  </div>
+                  <div className="settings-custom-field">
+                    <label className="settings-custom-label">环境变量名</label>
+                    <input
+                      className="settings-input"
+                      placeholder="例如: OPENAI_API_KEY（自动从名称生成）"
+                      value={customProviderForm.envKey}
+                      onChange={(e) => handleCustomProviderFieldChange('envKey', e.target.value)}
+                    />
+                  </div>
+                  <div className="settings-custom-form-actions">
+                    <button
+                      className="settings-custom-save-btn"
+                      onClick={handleSaveCustomProvider}
+                    >
+                      保存
+                    </button>
+                    <button
+                      className="settings-custom-cancel-btn"
+                      onClick={() => {
+                        setShowCustomProviderForm(false)
+                        resetCustomProviderForm()
+                      }}
+                    >
+                      取消
+                    </button>
+                  </div>
+                  {customProviderSaveMsg && (
+                    <div className="settings-save-message">{customProviderSaveMsg}</div>
+                  )}
+                </div>
+              )}
+            </div>
 
             {saveMessage && (
               <div className="settings-save-message">{saveMessage}</div>
