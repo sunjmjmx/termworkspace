@@ -50,6 +50,25 @@ npm start
 3. 看到「TermWorkspace」被拦截的提示，点 **「仍然打开」**
 4. 或者：启动时按住 `⌃Control` 键点应用图标，菜单里选「打开」
 
+### 安装版启动（无需终端）
+
+如果你不想从源代码构建，可以直接使用预构建的安装包：
+
+```bash
+# 从 Releases 页面下载 DMG
+# https://github.com/sunjmjmx/termworkspace/releases
+```
+
+1. 下载 `TermWorkspace-0.1.0-arm64.dmg`
+2. 双击 DMG 文件挂载磁盘映像
+3. 将 **TermWorkspace.app** 拖到 **Applications** 文件夹
+4. 首次启动时如果 Gatekeeper 拦截（见上节），按提示「仍然打开」
+5. 之后就可以从 **Launchpad**、**Spotlight** 或 **Dock** 双击启动了
+
+> 安装版和源代码版功能完全一致。安装版会将自己注册到 `/Applications`，之后无需终端即可启动，也支持从 Dock 固定。
+>
+> 安装版启动后，使用 `~/.termworkspace/` 目录保存配置和对话记录，与源代码版共用同一份数据，互不冲突。
+
 ---
 
 ## 卸载说明
