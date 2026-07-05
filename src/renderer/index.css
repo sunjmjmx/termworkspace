@@ -616,6 +616,33 @@ body {
   flex-shrink: 0;
 }
 
+.filetree-header-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.filetree-open-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.filetree-open-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
 .filetree-title {
   font-size: 11px;
   font-weight: 600;

@@ -57,13 +57,12 @@ interface FileTreeProps {
   theme: ThemeMode
   collapsed: boolean
   onToggleCollapse: () => void
+  onOpenFolder?: () => void
   activeTerminalId: string
   projectPath: string
 }
 
-// ── Component ─────────────────────────────────────────────
-
-export function FileTree({ theme, collapsed, onToggleCollapse, activeTerminalId, projectPath }: FileTreeProps) {
+export function FileTree({ theme, collapsed, onToggleCollapse, onOpenFolder, activeTerminalId, projectPath }: FileTreeProps) {
   const [rootNodes, setRootNodes] = useState<TreeNode[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -71,7 +70,7 @@ export function FileTree({ theme, collapsed, onToggleCollapse, activeTerminalId,
   // We keep a mutable ref so toggleNode can update state without stale closures
   const nodeMapRef = useRef<Map<string, TreeNode>>(new Map())
 
-  // ── Initial load: read the project root ────────────────
+  // ── Load / reload when projectPath changes ─────────────
   useEffect(() => {
     let cancelled = false
     async function init() {
@@ -90,7 +89,7 @@ export function FileTree({ theme, collapsed, onToggleCollapse, activeTerminalId,
     }
     init()
     return () => { cancelled = true }
-  }, [])
+  }, [projectPath])
 
   // ── Toggle a node (expand/collapse dir, or open file) ──
   const handleNodeClick = useCallback(async (node: TreeNode) => {
@@ -161,9 +160,20 @@ export function FileTree({ theme, collapsed, onToggleCollapse, activeTerminalId,
     <div className={`filetree-sidebar ${collapsed ? 'filetree-collapsed' : ''}`}>
       {/* Header */}
       <div className="filetree-header">
-        <span className="filetree-title">
-          {collapsed ? '📂' : 'Explorer'}
-        </span>
+        <div className="filetree-header-left">
+          {!collapsed && (
+            <button
+              className="filetree-open-btn"
+              onClick={onOpenFolder}
+              title="更换项目文件夹"
+            >
+              📁
+            </button>
+          )}
+          <span className="filetree-title">
+            {collapsed ? '📂' : 'Explorer'}
+          </span>
+        </div>
         <button
           className="filetree-collapse-btn"
           onClick={onToggleCollapse}
