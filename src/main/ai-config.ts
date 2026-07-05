@@ -1,12 +1,56 @@
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs'
 import path from 'path'
 import os from 'os'
-import type { AiProvider } from '../types'
+import type { AiProvider, CustomProviderConfig } from '../types'
 
 const PROVIDER_DEFS = [
   { id: 'kimi', name: 'Kimi', model: 'kimi-k2.6', baseUrl: 'https://api.moonshot.cn/v1', envKey: 'KIMI_API_KEY' },
   { id: 'deepseek', name: 'DeepSeek', model: 'deepseek-v4-flash', baseUrl: 'https://api.deepseek.com', envKey: 'DEEPSEEK_API_KEY' },
 ]
+
+const TW_HOME = path.join(os.homedir(), '.termworkspace')
+const CUSTOM_PROVIDER_FILE = path.join(TW_HOME, 'config', 'custom-providers.json')
+
+// ── Custom provider persistence ─────────────────────────
+
+function ensureCustomProviderDir(): void {
+  mkdirSync(path.dirname(CUSTOM_PROVIDER_FILE), { recursive: true })
+}
+
+export function loadCustomProviders(): CustomProviderConfig[] {
+  try {
+    if (existsSync(CUSTOM_PROVIDER_FILE)) {
+      const raw = readFileSync(CUSTOM_PROVIDER_FILE, 'utf-8')
+      const parsed = JSON.parse(raw) as CustomProviderConfig[]
+      return Array.isArray(parsed) ? parsed : []
+    }
+  } catch {
+    // corrupt file, ignore
+  }
+  return []
+}
+
+export function saveCustomProviders(providers: CustomProviderConfig[]): void {
+  ensureCustomProviderDir()
+  writeFileSync(CUSTOM_PROVIDER_FILE, JSON.stringify(providers, null, 2), 'utf-8')
+}
+
+export function addCustomProvider(provider: CustomProviderConfig): void {
+  const all = loadCustomProviders()
+  // Replace existing with same id, or append
+  const idx = all.findIndex((p) => p.id === provider.id)
+  if (idx >= 0) {
+    all[idx] = provider
+  } else {
+    all.push(provider)
+  }
+  saveCustomProviders(all)
+}
+
+export function removeCustomProvider(id: string): void {
+  const all = loadCustomProviders().filter((p) => p.id !== id)
+  saveCustomProviders(all)
+}
 
 /**
  * Try to find an API key from .env or process.env
@@ -65,10 +109,10 @@ function readKeyFromEnvFile(filePath: string, keyName: string): string | null {
 }
 
 /**
- * Discover all configured providers from .env and process.env
+ * Discover all configured providers from .env, process.env, and custom providers.
  */
 export function discoverProviders(): AiProvider[] {
-  return PROVIDER_DEFS.map((def) => {
+  const builtins = PROVIDER_DEFS.map((def) => {
     const apiKey = findEnvKey(def.envKey)
     return {
       id: def.id,
@@ -79,6 +123,21 @@ export function discoverProviders(): AiProvider[] {
       configured: apiKey !== null,
     }
   })
+
+  // Merge custom providers
+  const custom = loadCustomProviders().map((cp) => {
+    const apiKey = findEnvKey(cp.envKey)
+    return {
+      id: cp.id,
+      name: cp.name,
+      model: cp.model,
+      baseUrl: cp.baseUrl,
+      apiKey: apiKey ?? '',
+      configured: apiKey !== null,
+    }
+  })
+
+  return [...builtins, ...custom]
 }
 
 /**
@@ -128,12 +187,41 @@ const PROVIDER_KEY_MAP: Record<string, string> = {
 }
 
 /**
+ * Save an arbitrary key=value to ~/.termworkspace/.env.
+ * Unlike saveApiKey, this takes the env key name directly (for custom providers).
+ */
+export function saveEnvKey(envKey: string, apiKey: string): void {
+  writeEnvKey(envKey, apiKey)
+}
+
+/**
  * Save an API key to ~/.termworkspace/.env.
  * Replaces existing key for the same provider, appends if not present.
  */
 export function saveApiKey(providerId: string, apiKey: string): boolean {
-  const envKey = PROVIDER_KEY_MAP[providerId]
-  if (!envKey) return false
+  // Check built-in provider mapping first
+  const builtinEnvKey = PROVIDER_KEY_MAP[providerId]
+  if (builtinEnvKey) {
+    // Use built-in env key name
+    writeEnvKey(builtinEnvKey, apiKey)
+    return true
+  }
+
+  // Check custom providers
+  const customProviders = loadCustomProviders()
+  const custom = customProviders.find((p) => p.id === providerId)
+  if (custom) {
+    writeEnvKey(custom.envKey, apiKey)
+    return true
+  }
+
+  return false
+}
+
+/**
+ * Low-level key=value writer to ~/.termworkspace/.env.
+ */
+function writeEnvKey(envKey: string, apiKey: string): void {
 
   const twHome = path.join(os.homedir(), '.termworkspace')
   const envFile = path.join(twHome, '.env')
@@ -172,6 +260,4 @@ export function saveApiKey(providerId: string, apiKey: string): boolean {
 
   // Update process.env so in-memory reads pick it up immediately
   process.env[envKey] = apiKey
-
-  return true
 }

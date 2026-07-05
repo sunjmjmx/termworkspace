@@ -49,6 +49,14 @@ export interface AiProvider {
   configured: boolean
 }
 
+export interface CustomProviderConfig {
+  id: string
+  name: string
+  model: string
+  baseUrl: string
+  envKey: string
+}
+
 // ── AI Chat types ───────────────────────────────────────
 
 export interface AiChatMessage {
@@ -82,8 +90,9 @@ export interface AppConfig {
 }
 
 export const CONFIG_CHANNELS = {
-  send: ['config:load', 'config:save', 'config:save-api-key'] as const,
+  send: ['config:load', 'config:save', 'config:save-api-key', 'config:save-custom-provider'] as const,
   on: ['config:loaded', 'config:apikey-status'] as const,
+  invoke: ['config:list-custom-providers'] as const,
 } as const
 
 export type ConfigSendChannel = (typeof CONFIG_CHANNELS.send)[number]

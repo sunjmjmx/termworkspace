@@ -960,6 +960,7 @@ body {
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  pointer-events: none;
 }
 
 .settings-modal {
@@ -967,6 +968,7 @@ body {
   border: 1px solid var(--border-color);
   border-radius: 12px;
   width: 520px;
+  pointer-events: auto;
   max-width: 90vw;
   max-height: 80vh;
   display: flex;
@@ -1192,4 +1194,98 @@ body {
   border-radius: 6px;
   font-size: 12px;
   text-align: center;
+}
+
+/* ── Custom provider section ───────────────────────── */
+
+.settings-section-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 0;
+}
+
+.settings-custom-provider-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-custom-add-btn {
+  padding: 8px 16px;
+  background: transparent;
+  color: var(--accent-blue);
+  border: 1px dashed var(--accent-blue);
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  text-align: center;
+}
+
+.settings-custom-add-btn:hover {
+  background: var(--accent-blue);
+  color: var(--send-btn-text);
+}
+
+.settings-custom-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.settings-custom-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-custom-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.settings-custom-form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.settings-custom-save-btn {
+  flex: 1;
+  padding: 8px 16px;
+  background: var(--accent-blue);
+  color: var(--send-btn-text);
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.settings-custom-save-btn:hover {
+  background: var(--send-btn-hover);
+}
+
+.settings-custom-cancel-btn {
+  padding: 8px 16px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-hover);
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.settings-custom-cancel-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }

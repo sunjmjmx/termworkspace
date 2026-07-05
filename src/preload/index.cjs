@@ -3,7 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 const validSendChannels = [
   'terminal:create', 'terminal:resize', 'terminal:write', 'terminal:kill',
   'ai:chat',
-  'config:load', 'config:save', 'config:save-api-key',
+  'config:load', 'config:save', 'config:save-api-key', 'config:save-custom-provider',
   'layout:load', 'layout:save',
   'filetree:readdir', 'filetree:open-file',
   'project:cwd-set',
