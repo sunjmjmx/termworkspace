@@ -13,25 +13,6 @@
     "package": "electron-builder",
     "postinstall": "npx @electron/rebuild -f -w node-pty"
   },
-  "build": {
-    "appId": "com.termworkspace.app",
-    "productName": "TermWorkspace",
-    "directories": {
-      "output": "dist-electron/builder"
-    },
-    "files": [
-      "dist/**/*",
-      "dist-electron/**/*"
-    ],
-    "mac": {
-      "target": [
-        "dmg",
-        "zip"
-      ],
-      "hardenedRuntime": false
-    },
-    "asar": false
-  },
   "devDependencies": {
     "@electron/rebuild": "^3.7.2",
     "@testing-library/dom": "^10.4.1",
@@ -42,7 +23,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "5.0.4",
     "electron": "^33.0.0",
-    "electron-builder": "^24.13.3",
+    "electron-builder": "^25.1.0",
     "happy-dom": "^20.10.6",
     "typescript": "^5.6.0",
     "vite": "^6.0.0",
