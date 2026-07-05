@@ -10,7 +10,7 @@
     "build": "tsc && vite build && cp src/preload/index.cjs dist-electron/preload/index.cjs",
     "start": "electron .",
     "preview": "vite preview",
-    "package": "electron-builder",
+    "package": "node scripts/prepackage.cjs && electron-builder",
     "postinstall": "npx @electron/rebuild -f -w node-pty"
   },
   "devDependencies": {
