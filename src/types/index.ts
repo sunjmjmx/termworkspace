@@ -83,7 +83,7 @@ export interface AppConfig {
 
 export const CONFIG_CHANNELS = {
   send: ['config:load', 'config:save'] as const,
-  on: ['config:loaded'] as const,
+  on: ['config:loaded', 'config:apikey-status'] as const,
 } as const
 
 export type ConfigSendChannel = (typeof CONFIG_CHANNELS.send)[number]

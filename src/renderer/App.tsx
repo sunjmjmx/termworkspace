@@ -35,6 +35,8 @@ function App(): React.ReactElement {
   const [fileTreeCollapsed, setFileTreeCollapsed] = useState(false)
   const [projectPath, setProjectPath] = useState<string | null>(null)
   const [showProjectPicker, setShowProjectPicker] = useState(false)
+  const [noApiKey, setNoApiKey] = useState(false)
+  const [isPackaged, setIsPackaged] = useState(false)
 
   const toggleFileTree = useCallback(() => {
     setFileTreeCollapsed((prev) => !prev)
@@ -57,6 +59,15 @@ function App(): React.ReactElement {
       if (config?.theme) {
         setTheme(config.theme)
       }
+      if (config?.projectPath) {
+        setProjectPath(config.projectPath)
+      }
+    })
+
+    api.on('config:apikey-status', (raw: unknown) => {
+      const status = raw as { noApiKey: boolean; isPackaged: boolean }
+      setNoApiKey(status.noApiKey)
+      setIsPackaged(status.isPackaged)
     })
     api.send('config:load')
 
@@ -168,6 +179,11 @@ function App(): React.ReactElement {
           onToggleTheme={toggleTheme}
         />
         <div className="project-picker-overlay">
+          {noApiKey && isPackaged && (
+            <div className="api-key-warning">
+              ⚠ 未配置 API 密钥 → 在 ~/.termworkspace/.env 中设置 DEEPSEEK_API_KEY 或 KIMI_API_KEY
+            </div>
+          )}
           <div className="project-picker-card">
             <div className="project-picker-icon">📂</div>
             <h2 className="project-picker-title">TermWorkspace</h2>
