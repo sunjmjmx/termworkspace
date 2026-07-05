@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'fs'
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs'
 import path from 'path'
 import os from 'os'
 import type { AiProvider } from '../types'
@@ -117,4 +117,61 @@ export function getActiveProvider(activeProviderId?: string): { provider: AiProv
       model: active.model,
     },
   }
+}
+
+/**
+ * Provider ID → env key name mapping.
+ */
+const PROVIDER_KEY_MAP: Record<string, string> = {
+  kimi: 'KIMI_API_KEY',
+  deepseek: 'DEEPSEEK_API_KEY',
+}
+
+/**
+ * Save an API key to ~/.termworkspace/.env.
+ * Replaces existing key for the same provider, appends if not present.
+ */
+export function saveApiKey(providerId: string, apiKey: string): boolean {
+  const envKey = PROVIDER_KEY_MAP[providerId]
+  if (!envKey) return false
+
+  const twHome = path.join(os.homedir(), '.termworkspace')
+  const envFile = path.join(twHome, '.env')
+
+  // Read existing content or start fresh
+  let lines: string[] = []
+  if (existsSync(envFile)) {
+    const text = readFileSync(envFile, 'utf-8')
+    lines = text.split('\n')
+  }
+
+  // Find existing entry for this key, or track where to append
+  let replaced = false
+  const newLines = lines.map((line) => {
+    const trimmed = line.trim()
+    if (trimmed.startsWith(`${envKey}=`)) {
+      replaced = true
+      return `${envKey}=${apiKey}`
+    }
+    return line
+  })
+
+  if (!replaced) {
+    // Remove trailing empty lines, add new entry
+    while (newLines.length > 0 && newLines[newLines.length - 1].trim() === '') {
+      newLines.pop()
+    }
+    newLines.push(`${envKey}=${apiKey}`)
+  }
+
+  // Ensure trailing newline
+  newLines.push('')
+
+  mkdirSync(twHome, { recursive: true })
+  writeFileSync(envFile, newLines.join('\n'), 'utf-8')
+
+  // Update process.env so in-memory reads pick it up immediately
+  process.env[envKey] = apiKey
+
+  return true
 }

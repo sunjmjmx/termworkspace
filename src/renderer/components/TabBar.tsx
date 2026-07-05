@@ -9,6 +9,8 @@ interface TabBarProps {
   onCreate: () => void
   theme: ThemeMode
   onToggleTheme: () => void
+  onOpenSettings?: () => void
+  noApiKey?: boolean
 }
 
 /**
@@ -20,7 +22,7 @@ interface TabBarProps {
  * - Theme toggle button (🌙/☀️) at the right end.
  * - Auto-scrolls to keep the active tab visible.
  */
-export function TabBar({ tabs, activeTabId, onSwitch, onClose, onCreate, theme, onToggleTheme }: TabBarProps) {
+export function TabBar({ tabs, activeTabId, onSwitch, onClose, onCreate, theme, onToggleTheme, onOpenSettings, noApiKey }: TabBarProps) {
   const tabsRef = useRef<HTMLDivElement>(null)
   const activeTabRef = useRef<HTMLButtonElement>(null)
 
@@ -76,6 +78,13 @@ export function TabBar({ tabs, activeTabId, onSwitch, onClose, onCreate, theme, 
           +
         </button>
       </div>
+      <button
+        className={`settings-toggle-btn ${noApiKey ? 'settings-toggle-btn-warn' : ''}`}
+        onClick={onOpenSettings}
+        title="Settings"
+      >
+        ⚙️
+      </button>
       <button
         className="theme-toggle-btn"
         onClick={onToggleTheme}

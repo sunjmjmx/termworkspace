@@ -82,12 +82,17 @@ export interface AppConfig {
 }
 
 export const CONFIG_CHANNELS = {
-  send: ['config:load', 'config:save'] as const,
+  send: ['config:load', 'config:save', 'config:save-api-key'] as const,
   on: ['config:loaded', 'config:apikey-status'] as const,
 } as const
 
 export type ConfigSendChannel = (typeof CONFIG_CHANNELS.send)[number]
 export type ConfigOnChannel = (typeof CONFIG_CHANNELS.on)[number]
+
+export interface SaveApiKeyRequest {
+  provider: string
+  key: string
+}
 
 // ── Layout persistence ────────────────────────────────────
 
