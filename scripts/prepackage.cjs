@@ -4,6 +4,49 @@ const fs = require('fs-extra');
 const ELECTRON_SRC = 'node_modules/electron/dist';
 const FLATTENED_DEST = 'build/electron-dist-flattened';
 
+/**
+ * Verify that the flattened Electron.app cache is intact by checking
+ * key files that must exist. Prevents stale-marker corruption (e.g.
+ * from interrupted builds or residual files where only the marker
+ * survived but the actual app is broken).
+ */
+async function verifyIntegrity(electronApp) {
+  if (!await fs.pathExists(electronApp)) return false;
+
+  const checks = [
+    {
+      name: 'Electron.app/Contents/MacOS/Electron',
+      path: path.join(electronApp, 'Contents', 'MacOS', 'Electron')
+    },
+    {
+      name: 'Electron.app/Contents/Frameworks/Electron Framework.framework/Electron Framework',
+      path: path.join(electronApp, 'Contents', 'Frameworks', 'Electron Framework.framework', 'Electron Framework')
+    }
+  ];
+
+  // Need at least one Helper.app
+  const frameworksDir = path.join(electronApp, 'Contents', 'Frameworks');
+  let hasHelper = false;
+  if (await fs.pathExists(frameworksDir)) {
+    const entries = await fs.readdir(frameworksDir, { withFileTypes: true });
+    hasHelper = entries.some(e => e.isDirectory() && e.name.includes('Helper') && e.name.endsWith('.app'));
+  }
+
+  for (const check of checks) {
+    if (!await fs.pathExists(check.path)) {
+      console.error('  ✗ Missing:', check.name);
+      return false;
+    }
+  }
+
+  if (!hasHelper) {
+    console.error('  ✗ Missing: at least one Helper.app in Frameworks/');
+    return false;
+  }
+
+  return true;
+}
+
 async function main() {
   const markerFile = path.join(FLATTENED_DEST, '.flattened');
   const versionFile = path.join(ELECTRON_SRC, 'version');
@@ -20,8 +63,16 @@ async function main() {
   }
 
   if (!needRefresh) {
-    console.log('✓ Flattened Electron.app is up-to-date');
-    return;
+    // Marker matches — also verify cache integrity
+    const electronApp = path.join(FLATTENED_DEST, 'Electron.app');
+    if (await verifyIntegrity(electronApp)) {
+      console.log('✓ Flattened Electron.app is up-to-date');
+      return;
+    }
+    // Cache is corrupted — invalidate marker and force rebuild
+    console.error('⚠ Cache integrity check failed — corrupted Electron dist detected');
+    console.error('  Cleaning up and rebuilding...');
+    needRefresh = true;
   }
 
   if (!await fs.pathExists(path.join(ELECTRON_SRC, 'Electron.app'))) {
