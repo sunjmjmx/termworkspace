@@ -1,13 +1,19 @@
 appId: com.termworkspace.v2
-productName: TermWorkspace v2
+productName: TermWorkspace
 directories:
   buildResources: build
-  output: release
+  output: dist-electron/builder
 
 files:
   - dist/**/*
   - dist-electron/**/*
+  - "!dist-electron/builder/**/*"
   - package.json
+
+asar: false
+
+# Use flattened Electron distribution to avoid symlink parallel creation bug
+electronDist: build/electron-dist-flattened
 
 mac:
   category: public.app-category.developer-tools
@@ -16,7 +22,14 @@ mac:
       arch:
         - x64
         - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
   artifactName: ${name}-${version}-${arch}.${ext}
+
+dmg:
+  title: TermWorkspace ${version}
 
 win:
   target:

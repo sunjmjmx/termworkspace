@@ -50,6 +50,55 @@ npm start
 3. 看到「TermWorkspace」被拦截的提示，点 **「仍然打开」**
 4. 或者：启动时按住 `⌃Control` 键点应用图标，菜单里选「打开」
 
+### 安装版启动（.dmg / .zip）
+
+如果你拿到的是打包好的安装包（`.dmg` 或 `.zip`），不需要安装 Node.js 或 Git，直接拖拽启动。
+
+#### 从 .dmg 安装
+
+```bash
+# 1. 双击 termworkspace-v2-0.1.0-arm64.dmg（Intel Mac 选 x64 版本）
+# 2. 在弹出的窗口中，将 TermWorkspace 拖到 Applications 文件夹
+# 3. 首次运行：在「应用程序」文件夹找到 TermWorkspace，右键 → 打开
+#    或按住 ⌃Control 键点图标 → 打开
+```
+
+> 如果 Gatekeeper 弹出安全提示，参考上文的「Gatekeeper 拦截」处理。
+
+#### 从 .zip 使用
+
+```bash
+# 1. 解压 termworkspace-v2-0.1.0-xxx.zip
+#    unzip termworkspace-v2-0.1.0-arm64.zip
+
+# 2. 将解压出的 TermWorkspace.app 拖到「应用程序」文件夹
+
+# 3. 从「应用程序」文件夹或 Launchpad 启动
+```
+
+#### 打包版与源码版的区别
+
+| 方面 | 打包版（.dmg / .zip） | 源码版（git clone） |
+|:-----|:----------------------|:-------------------|
+| 前置要求 | 无 | Node.js 18+、Git、Xcode CLI |
+| 安装方式 | 拖拽到 Applications | `git clone + npm install` |
+| 更新方式 | 重新下载新版 | `git pull + npm install` |
+| 适用人群 | 只想直接用 | 想自己改、二次开发 |
+| 大小 | ~200MB（单文件） | 依赖安装后 ~1.5GB |
+
+两个版本的功能完全一样。打包版更适合不熟悉命令行的用户，源码版适合开发者。首次使用时，应用会自动创建 `~/.termworkspace/` 存放配置和聊天记录。
+
+#### 进程验证
+
+启动后，活动监视器或终端 `ps aux | grep TermWorkspace` 可以看到以下进程树：
+
+```
+TermWorkspace                      # 主进程
+├── TermWorkspace Helper (GPU)     # GPU 渲染进程
+├── TermWorkspace Helper (Renderer) # 页面渲染进程
+└── TermWorkspace Helper           # 网络服务进程
+```
+
 ---
 
 ## 卸载说明

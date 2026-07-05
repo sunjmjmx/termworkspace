@@ -5,3 +5,4 @@ dist-electron
 release
 .DS_Store
 .env
+build/
