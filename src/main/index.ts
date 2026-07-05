@@ -4,8 +4,8 @@ import os from 'os'
 import { createPTY, PtyProcess } from './platform'
 import https from 'https'
 import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync, statSync, realpathSync } from 'fs'
-import type { AiChatRequest, AppConfig, LayoutData, FileTreeEntry, AiChatMessage } from '../types'
-import { discoverProviders, getActiveProvider, hasAnyApiKey } from './ai-config'
+import type { AiChatRequest, AppConfig, LayoutData, FileTreeEntry, AiChatMessage, SaveApiKeyRequest } from '../types'
+import { discoverProviders, getActiveProvider, hasAnyApiKey, saveApiKey } from './ai-config'
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
@@ -382,6 +382,23 @@ function setupIPC() {
   // config:save — persist and broadcast
   ipcMain.on('config:save', (_event, config: AppConfig) => {
     saveConfig(config)
+  })
+
+  // config:save-api-key — save provider API key to ~/.termworkspace/.env
+  ipcMain.on('config:save-api-key', (event, request: SaveApiKeyRequest) => {
+    const { provider, key } = request
+    console.log(`[termworkspace] config:save-api-key for provider "${provider}"`)
+    const ok = saveApiKey(provider, key)
+    if (!ok) {
+      console.warn(`[termworkspace] unknown provider: "${provider}"`)
+    }
+    // Broadcast updated status to all windows
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('config:apikey-status', {
+        noApiKey: !hasAnyApiKey(),
+        isPackaged: !VITE_DEV_SERVER_URL,
+      })
+    }
   })
 
   // layout:load — return saved layout

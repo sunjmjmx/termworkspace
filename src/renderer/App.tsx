@@ -3,7 +3,7 @@ import { SplitPane } from './components/SplitPane'
 import { TabBar } from './components/TabBar'
 import { FileTree } from './components/FileTree'
 import { useTabState } from './hooks/useTabState'
-import type { ThemeMode, AppConfig, LayoutData, SplitNode } from '../types'
+import type { ThemeMode, AppConfig, LayoutData, SplitNode, AiProvider } from '../types'
 
 /**
  * Walk the split tree to find the first leaf's terminal ID.
@@ -38,6 +38,25 @@ function App(): React.ReactElement {
   const [noApiKey, setNoApiKey] = useState(false)
   const [isPackaged, setIsPackaged] = useState(false)
 
+  // ── Settings modal state ──────────────────────────────
+  const [showSettings, setShowSettings] = useState(false)
+  const [providers, setProviders] = useState<AiProvider[]>([])
+  const [apiKeyInputs, setApiKeyInputs] = useState<Record<string, string>>({})
+  const [showKeyMap, setShowKeyMap] = useState<Record<string, boolean>>({})
+  const [savingKey, setSavingKey] = useState<Record<string, boolean>>({})
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+
+  const loadProviders = useCallback(async () => {
+    const api = window.electronAPI
+    if (!api) return
+    try {
+      const list = (await api.invoke('ai:list-providers')) as AiProvider[]
+      setProviders(list)
+    } catch {
+      // ignore
+    }
+  }, [])
+
   const toggleFileTree = useCallback(() => {
     setFileTreeCollapsed((prev) => !prev)
   }, [])
@@ -68,13 +87,15 @@ function App(): React.ReactElement {
       const status = raw as { noApiKey: boolean; isPackaged: boolean }
       setNoApiKey(status.noApiKey)
       setIsPackaged(status.isPackaged)
+      // Reload providers to reflect updated config status
+      loadProviders()
     })
     api.send('config:load')
 
     return () => {
       api.removeAllListeners('config:loaded')
     }
-  }, [])
+  }, [loadProviders])
 
   // ── Handle project path from main process ────────────
   useEffect(() => {
@@ -165,6 +186,47 @@ function App(): React.ReactElement {
     setShowProjectPicker(false)
   }, [])
 
+  // ── Settings handlers ─────────────────────────────────
+  const openSettings = useCallback(async () => {
+    await loadProviders()
+    setShowSettings(true)
+    setSaveMessage(null)
+  }, [loadProviders])
+
+  const closeSettings = useCallback(() => {
+    setShowSettings(false)
+    setSaveMessage(null)
+  }, [])
+
+  const handleKeyInputChange = useCallback((providerId: string, value: string) => {
+    setApiKeyInputs((prev) => ({ ...prev, [providerId]: value }))
+  }, [])
+
+  const toggleKeyVisibility = useCallback((providerId: string) => {
+    setShowKeyMap((prev) => ({ ...prev, [providerId]: !prev[providerId] }))
+  }, [])
+
+  const handleSaveKey = useCallback(async (providerId: string, key: string) => {
+    const api = window.electronAPI
+    if (!api || !key.trim()) return
+
+    setSavingKey((prev) => ({ ...prev, [providerId]: true }))
+    try {
+      api.send('config:save-api-key', { provider: providerId, key: key.trim() })
+      setSaveMessage(`${providers.find((p) => p.id === providerId)?.name ?? providerId} API key saved`)
+      // Clear input after save
+      setApiKeyInputs((prev) => {
+        const next = { ...prev }
+        delete next[providerId]
+        return next
+      })
+    } catch (err) {
+      setSaveMessage(`Failed to save key: ${err}`)
+    } finally {
+      setSavingKey((prev) => ({ ...prev, [providerId]: false }))
+    }
+  }, [providers])
+
   // ── Project picker overlay (before project is selected) ──
   if (!projectPath) {
     return (
@@ -177,11 +239,13 @@ function App(): React.ReactElement {
           onCreate={createTab}
           theme={theme}
           onToggleTheme={toggleTheme}
+          onOpenSettings={openSettings}
+          noApiKey={noApiKey}
         />
         <div className="project-picker-overlay">
-          {noApiKey && isPackaged && (
+          {noApiKey && (
             <div className="api-key-warning">
-              ⚠ 未配置 API 密钥 → 在 ~/.termworkspace/.env 中设置 DEEPSEEK_API_KEY 或 KIMI_API_KEY
+              ⚠ 未配置 API 密钥 — 点击右上角 ⚙️ 设置中添加
             </div>
           )}
           <div className="project-picker-card">
@@ -197,6 +261,7 @@ function App(): React.ReactElement {
             </button>
           </div>
         </div>
+        {renderSettingsModal()}
       </div>
     )
   }
@@ -213,7 +278,14 @@ function App(): React.ReactElement {
           onCreate={createTab}
           theme={theme}
           onToggleTheme={toggleTheme}
+          onOpenSettings={openSettings}
+          noApiKey={noApiKey}
         />
+        {noApiKey && (
+          <div className="api-key-warning api-key-warning-static">
+            ⚠ 未配置 API 密钥 — 点击右上角 ⚙️ 设置中添加
+          </div>
+        )}
         <div className="app-content empty-state">
           <div className="empty-state-content">
             <div className="empty-state-icon">🖥️</div>
@@ -224,6 +296,7 @@ function App(): React.ReactElement {
             </button>
           </div>
         </div>
+        {renderSettingsModal()}
       </div>
     )
   }
@@ -240,7 +313,14 @@ function App(): React.ReactElement {
         onCreate={createTab}
         theme={theme}
         onToggleTheme={toggleTheme}
+        onOpenSettings={openSettings}
+        noApiKey={noApiKey}
       />
+      {noApiKey && (
+        <div className="api-key-warning api-key-warning-static">
+          ⚠ 未配置 API 密钥 — 点击右上角 ⚙️ 设置中添加
+        </div>
+      )}
       <div className="app-content">
         <FileTree
           theme={theme}
@@ -257,8 +337,84 @@ function App(): React.ReactElement {
           projectPath={projectPath}
         />
       </div>
+      {renderSettingsModal()}
     </div>
   )
+
+  // ── Settings Modal ────────────────────────────────────
+  function renderSettingsModal() {
+    if (!showSettings) return null
+
+    return (
+      <div className="settings-overlay" onClick={closeSettings}>
+        <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="settings-modal-header">
+            <h2 className="settings-modal-title">API 密钥配置</h2>
+            <button className="settings-modal-close" onClick={closeSettings}>×</button>
+          </div>
+
+          <div className="settings-modal-body">
+            {providers.map((p) => (
+              <div key={p.id} className="settings-provider-row">
+                <div className="settings-provider-info">
+                  <span className="settings-provider-name">{p.name}</span>
+                  <span className="settings-provider-model">{p.model}</span>
+                  <span className={`settings-provider-status ${p.configured ? 'status-configured' : 'status-unconfigured'}`}>
+                    {p.configured ? '✅ 已配置' : '❌ 未配置'}
+                  </span>
+                </div>
+                <div className="settings-provider-input-row">
+                  <div className="settings-input-wrapper">
+                    <input
+                      type={showKeyMap[p.id] ? 'text' : 'password'}
+                      className="settings-input"
+                      placeholder={p.configured ? 'Enter new key to replace...' : 'Enter API key...'}
+                      value={apiKeyInputs[p.id] ?? ''}
+                      onChange={(e) => handleKeyInputChange(p.id, e.target.value)}
+                      spellCheck={false}
+                    />
+                    <button
+                      className="settings-toggle-vis"
+                      onClick={() => toggleKeyVisibility(p.id)}
+                      title={showKeyMap[p.id] ? 'Hide key' : 'Show key'}
+                    >
+                      {showKeyMap[p.id] ? '👁' : '👁‍🗨'}
+                    </button>
+                  </div>
+                  <button
+                    className="settings-save-btn"
+                    onClick={() => handleSaveKey(p.id, apiKeyInputs[p.id] ?? '')}
+                    disabled={!apiKeyInputs[p.id]?.trim() || savingKey[p.id]}
+                  >
+                    {savingKey[p.id] ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {providers.length === 0 && (
+              <div className="settings-empty">
+                <p>No providers available.</p>
+              </div>
+            )}
+
+            {saveMessage && (
+              <div className="settings-save-message">{saveMessage}</div>
+            )}
+          </div>
+
+          <div className="settings-modal-footer">
+            <p className="settings-hint">
+              API keys are stored in <code>~/.termworkspace/.env</code>
+            </p>
+            <button className="settings-close-btn" onClick={closeSettings}>
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 }
 
 export default App
