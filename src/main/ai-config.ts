@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from 'fs'
 import path from 'path'
+import os from 'os'
 import type { AiProvider } from '../types'
 
 const PROVIDER_DEFS = [
@@ -11,20 +12,56 @@ const PROVIDER_DEFS = [
  * Try to find an API key from .env or process.env
  */
 function findEnvKey(keyName: string): string | null {
-  // Try reading .env from project root (resolved relative to dist/main/)
-  const envPath = path.join(import.meta.dirname, '../../.env')
-  if (existsSync(envPath)) {
-    const text = readFileSync(envPath, 'utf-8')
+  // Multi-level .env lookup:
+  //   a) <project-root>/.env        — dev scenario
+  //   d) process.env                 — shell env (app launched via terminal)
+  //   b) ~/.termworkspace/.env       — packaged .app scenario (recommended)
+  //   c) ~/.env                      — backup
+  // Priority: a > d > b > c
+
+  // a) Project root .env (resolved relative to dist/main/)
+  const projectEnv = path.join(import.meta.dirname, '../../.env')
+  if (existsSync(projectEnv)) {
+    const val = readKeyFromEnvFile(projectEnv, keyName)
+    if (val !== null) return val
+  }
+
+  // d) process.env
+  if (process.env[keyName]) return process.env[keyName]!
+
+  // b) ~/.termworkspace/.env (packaged .app: user places API key here)
+  const termworkspaceEnv = path.join(os.homedir(), '.termworkspace', '.env')
+  if (existsSync(termworkspaceEnv)) {
+    const val = readKeyFromEnvFile(termworkspaceEnv, keyName)
+    if (val !== null) return val
+  }
+
+  // c) ~/.env (backup)
+  const homeEnv = path.join(os.homedir(), '.env')
+  if (existsSync(homeEnv)) {
+    const val = readKeyFromEnvFile(homeEnv, keyName)
+    if (val !== null) return val
+  }
+
+  return null
+}
+
+/**
+ * Read a key from a .env file (simple line-by-line parser).
+ */
+function readKeyFromEnvFile(filePath: string, keyName: string): string | null {
+  try {
+    const text = readFileSync(filePath, 'utf-8')
     for (const line of text.split('\n')) {
       const trimmed = line.trim()
       if (trimmed.startsWith(`${keyName}=`)) {
         return trimmed.slice(`${keyName}=`.length).replace(/['"]/g, '')
       }
     }
+  } catch {
+    // corrupt or unreadable file, skip
   }
-
-  // Fall back to process.env
-  return process.env[keyName] ?? null
+  return null
 }
 
 /**

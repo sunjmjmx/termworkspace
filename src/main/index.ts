@@ -15,16 +15,35 @@ let mainWindow: BrowserWindow | null = null
 const ptyRegistry = new Map<string, PtyProcess>()
 
 // ── Config persistence ────────────────────────────────────
+// Uses ~/.termworkspace/config/app-config.json (fixed path, independent of
+// app.getPath('userData') which differs between dev and packaged builds).
 
-const configDir = path.join(app.getPath('userData'), 'config')
+const oldConfigDir = path.join(app.getPath('userData'), 'config')
+const oldConfigFile = path.join(oldConfigDir, 'app-config.json')
+
+const TW_HOME = path.join(os.homedir(), '.termworkspace')
+const configDir = path.join(TW_HOME, 'config')
 const configFile = path.join(configDir, 'app-config.json')
 
 function loadConfig(): AppConfig {
+  // Migration: if ~/.termworkspace/config/app-config.json doesn't exist but
+  // the old app.getPath('userData') path does, silently migrate it.
+  if (!existsSync(configFile) && existsSync(oldConfigFile)) {
+    try {
+      mkdirSync(configDir, { recursive: true })
+      const raw = readFileSync(oldConfigFile, 'utf-8')
+      writeFileSync(configFile, raw, 'utf-8')
+      console.log(`[termworkspace] migrated config: ${oldConfigFile} → ${configFile}`)
+    } catch (e) {
+      console.warn(`[termworkspace] config migration failed:`, e)
+    }
+  }
+
   try {
     if (existsSync(configFile)) {
       const raw = readFileSync(configFile, 'utf-8')
       const parsed = JSON.parse(raw) as Partial<AppConfig>
-      return { theme: parsed.theme ?? 'dark', projectPath: parsed.projectPath }
+      return { theme: parsed.theme ?? 'dark', projectPath: parsed.projectPath, aiProvider: parsed.aiProvider }
     }
   } catch {
     // ignore corrupt config, use defaults
@@ -37,46 +56,9 @@ function saveConfig(config: AppConfig): void {
   writeFileSync(configFile, JSON.stringify(config, null, 2), 'utf-8')
 }
 
-// ── AI Config ────────────────────────────────────────────
-
-interface AiConfig {
-  apiKey: string
-  baseUrl: string
-  model: string
-}
-
-function loadAiConfig(): AiConfig | null {
-  // Try reading .env from project root
-  const envPath = path.join(import.meta.dirname, '../../.env')
-  if (existsSync(envPath)) {
-    const text = readFileSync(envPath, 'utf-8')
-    for (const line of text.split('\n')) {
-      const trimmed = line.trim()
-      if (trimmed.startsWith('KIMI_API_KEY=')) {
-        const key = trimmed.slice('KIMI_API_KEY='.length).replace(/['"]/g, '')
-        return { apiKey: key, baseUrl: 'https://api.moonshot.cn/v1', model: 'kimi-k2.6' }
-      }
-      if (trimmed.startsWith('DEEPSEEK_API_KEY=')) {
-        const key = trimmed.slice('DEEPSEEK_API_KEY='.length).replace(/['"]/g, '')
-        return { apiKey: key, baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-flash' }
-      }
-    }
-  }
-
-  // Fall back to process.env
-  if (process.env.KIMI_API_KEY) {
-    return { apiKey: process.env.KIMI_API_KEY, baseUrl: 'https://api.moonshot.cn/v1', model: 'kimi-k2.6' }
-  }
-  if (process.env.DEEPSEEK_API_KEY) {
-    return { apiKey: process.env.DEEPSEEK_API_KEY, baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-flash' }
-  }
-
-  return null
-}
-
 // ── Layout persistence ────────────────────────────────────
 
-const layoutDir = path.join(os.homedir(), '.termworkspace')
+const layoutDir = TW_HOME
 const layoutFile = path.join(layoutDir, 'layout.json')
 
 function loadLayout(): LayoutData | null {
