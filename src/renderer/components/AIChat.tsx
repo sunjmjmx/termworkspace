@@ -102,9 +102,10 @@ export function AIChat({ chatId, model: propModel, systemPrompt, onClose }: AICh
     }
   }, [chatId])
 
-  // Fetch providers and active provider on mount
+  // Fetch providers and active provider on mount, and reload when API keys change
   useEffect(() => {
     const api = window.electronAPI
+    if (!api) return
 
     async function loadProviders() {
       try {
@@ -125,7 +126,16 @@ export function AIChat({ chatId, model: propModel, systemPrompt, onClose }: AICh
       }
     }
 
+    // Reload when API key status changes (e.g. user saved a key in settings)
+    const unsubStatus = api.on('config:apikey-status', () => {
+      loadProviders()
+    })
+
     loadProviders()
+
+    return () => {
+      unsubStatus()
+    }
   }, [])
 
   // Handle provider/model selection change

@@ -62,8 +62,8 @@ describe('AIChat', () => {
 
   it('should call cleanup functions returned by on() on unmount', () => {
     const { unmount } = render(<AIChat chatId="test-chat-1" />)
-    // After mount: 3 on() calls → 3 cleanup functions registered
-    expect(mockOnCleanups.length).toBe(3)
+    // After mount: 4 on() calls → 4 cleanup functions registered
+    expect(mockOnCleanups.length).toBe(4)
 
     unmount()
 
