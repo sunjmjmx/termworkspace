@@ -29,21 +29,26 @@ function sortEntries(entries: FileTreeEntry[]): FileTreeEntry[] {
 /**
  * Load a directory via IPC (event-based: send → on → result).
  * Returns a promise that resolves with the entries or [].
+ * Uses `once` listener to prevent cross-talk between rapid project-path changes.
  */
 function readDir(dirPath: string): Promise<FileTreeEntry[]> {
   return new Promise((resolve) => {
     const api = window.electronAPI
     if (!api) return resolve([])
 
-    const handler = (raw: unknown) => {
+    // Remove any stale listener from a previous readDir that hasn't resolved yet.
+    // This prevents the race condition where two readDir calls compete for the same channel.
+    api.removeAllListeners('filetree:readdir-result')
+
+    // Use `once` so this handler fires at most once and self-destructs.
+    // The timeout below handles the case where the reply never arrives.
+    api.once('filetree:readdir-result', (raw: unknown) => {
       const entries = raw as FileTreeEntry[]
-      api.removeAllListeners('filetree:readdir-result')
       resolve(entries ?? [])
-    }
-    api.on('filetree:readdir-result', handler)
+    })
     api.send('filetree:readdir', dirPath)
 
-    // Timeout fallback
+    // Timeout fallback — clean up and resolve as empty if something went wrong.
     setTimeout(() => {
       api.removeAllListeners('filetree:readdir-result')
       resolve([])

@@ -187,8 +187,9 @@ function App(): React.ReactElement {
       const result = await api.invoke('dialog:select-project')
       const selectedPath = result as string | null
       if (selectedPath) {
-        setProjectPath(selectedPath)
-        // Persist to config and notify all windows
+        // Notify main process — it saves to config and broadcasts `project:selected` back,
+        // which triggers the single setProjectPath in the project:selected listener.
+        // This avoids a dual-setProjectPath race with the readDir IPC handler.
         api.send('project:cwd-set', selectedPath)
       }
     } catch (err) {

@@ -167,6 +167,7 @@ export interface ElectronAPI {
   platform: NodeJS.Platform
   send: (channel: ValidSendChannel | ConfigSendChannel | LayoutSendChannel | ChatSendChannel | FileTreeSendChannel | ProjectSendChannel, ...args: unknown[]) => void
   on: (channel: ValidOnChannel | ConfigOnChannel | LayoutOnChannel | ChatOnChannel | FileTreeOnChannel | ProjectOnChannel, callback: (...args: unknown[]) => void) => () => void
+  once: (channel: ValidOnChannel | ConfigOnChannel | LayoutOnChannel | ChatOnChannel | FileTreeOnChannel | ProjectOnChannel, callback: (...args: unknown[]) => void) => void
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
   removeAllListeners: (channel: ValidOnChannel | ConfigOnChannel | LayoutOnChannel | ChatOnChannel | FileTreeOnChannel | ProjectOnChannel) => void
 }
